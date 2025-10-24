@@ -63,9 +63,10 @@ A React-based face recognition application that uses real-time camera face detec
 ### Face Detection & Recognition
 - Uses face-api.js with TensorFlow.js CPU backend
 - TinyFaceDetector for fast face detection
-- 68-point facial landmark detection
+- 68-point facial landmark detection (hidden from UI for privacy)
 - Face descriptors (128-dimensional vectors) for recognition
 - FaceMatcher with 0.6 threshold for accurate matching
+- Visual overlays hidden during scanning - only iOS-style frame and status shown
 
 ### Storage
 - Face descriptors stored in localStorage as JSON
@@ -79,6 +80,8 @@ A React-based face recognition application that uses real-time camera face detec
 - High-quality video (1280x720 ideal resolution)
 - Real-time video processing with canvas overlay
 - Robust error handling with stream preservation on camera switch failures
+- Mobile-optimized constraints to prevent autofocus zoom wobble
+- Dynamic capability detection and constraint application per device
 
 ## Development
 - Development server runs on port 5000
@@ -93,6 +96,13 @@ A React-based face recognition application that uses real-time camera face detec
 - All models and assets served statically
 
 ## Recent Changes
+
+- **2024-10-24**: Privacy and mobile UX improvements
+  - Hidden face model visualization (bounding boxes and landmarks) during scanning for better privacy
+  - Face detection still works in background - only visual overlay is hidden
+  - Implemented mobile camera constraints to prevent autofocus zoom wobble
+  - Added `applyMobileConstraints` helper that checks device capabilities and applies focus/zoom settings
+  - Mobile users will experience more stable camera view during face scanning
 
 - **2024-10-24**: Fixed critical face detection loop issue
   - Modified detectFaces function to check isScanningRef.current FIRST before checking video state
