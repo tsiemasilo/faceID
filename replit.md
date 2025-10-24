@@ -93,6 +93,14 @@ A React-based face recognition application that uses real-time camera face detec
 - All models and assets served statically
 
 ## Recent Changes
+- **2024-10-24**: Fixed face registration state closure bug
+  - Fixed critical bug where face registration wouldn't work due to stale state values in async detection loop
+  - Added refs (isNewUserRef, userNameRef) to ensure detection loop always has current values
+  - Added comprehensive console logging throughout registration flow for debugging
+  - Improved error handling with proper recovery - detection loop restarts after errors
+  - Removed silent failures and added clear error messages for users
+  - Face registration now works reliably - users will see success message after face is captured
+
 - **2024-10-24**: UX improvements for existing user authentication flow
   - Added validation check to prevent camera from starting when no users are registered
   - Display helpful error message when user clicks "Existing User" with no registered profiles
