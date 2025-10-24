@@ -141,47 +141,81 @@ export default function App() {
   };
 
   const startFaceDetection = async () => {
-    if (!videoRef.current || !modelsLoaded) return;
+    if (!videoRef.current || !modelsLoaded) {
+      console.log('Face detection not started: video or models not ready');
+      return;
+    }
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
     
-    if (!canvas) return;
+    if (!canvas) {
+      console.log('Face detection not started: canvas not ready');
+      return;
+    }
+
+    // Wait for video to have dimensions
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      console.log('Waiting for video dimensions...');
+      setTimeout(() => startFaceDetection(), 100);
+      return;
+    }
 
     const displaySize = { 
-      width: video.videoWidth || 640, 
-      height: video.videoHeight || 480 
+      width: video.videoWidth, 
+      height: video.videoHeight 
     };
     
+    console.log('Starting face detection with size:', displaySize);
     faceapi.matchDimensions(canvas, displaySize);
 
     const detectFaces = async () => {
       if (!video.paused && !video.ended && isScanningRef.current) {
-        const detections = await faceapi
-          .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
-          .withFaceLandmarks()
-          .withFaceDescriptors();
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+          try {
+            const detections = await faceapi
+              .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
+              .withFaceLandmarks()
+              .withFaceDescriptors();
 
-        if (detections.length > 0) {
-          const resizedDetections = faceapi.resizeResults(detections, displaySize);
-          
-          if (canvas) {
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-              ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (detections.length > 0) {
+              console.log('Face detected!');
+              const resizedDetections = faceapi.resizeResults(detections, displaySize);
               
-              faceapi.draw.drawDetections(canvas, resizedDetections);
-              faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
+              if (canvas) {
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                  // Save the current transform state
+                  ctx.save();
+                  
+                  // Mirror the canvas if front camera to match the mirrored video
+                  if (facingMode === 'user') {
+                    ctx.translate(canvas.width, 0);
+                    ctx.scale(-1, 1);
+                  }
+                  
+                  ctx.clearRect(0, 0, canvas.width, canvas.height);
+                  
+                  faceapi.draw.drawDetections(canvas, resizedDetections);
+                  faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
 
-              if (isNewUser) {
-                handleNewUserRegistration(detections[0]);
-              } else {
-                handleExistingUserRecognition(detections[0], resizedDetections[0]);
+                  // Restore the transform state
+                  ctx.restore();
+
+                  if (isNewUser) {
+                    handleNewUserRegistration(detections[0]);
+                  } else {
+                    handleExistingUserRecognition(detections[0], resizedDetections[0]);
+                  }
+                }
               }
             }
+          } catch (error) {
+            console.error('Face detection error:', error);
           }
         }
-
+        
+        // Always request next frame to keep the loop running
         requestAnimationFrame(detectFaces);
       }
     };
@@ -330,7 +364,7 @@ export default function App() {
     // Start face detection after camera is ready
     setTimeout(() => {
       startFaceDetection();
-    }, 200);
+    }, 500);
   };
 
   const handleNameSubmit = async () => {
@@ -362,7 +396,7 @@ export default function App() {
     // Start face detection after camera is ready
     setTimeout(() => {
       startFaceDetection();
-    }, 200);
+    }, 500);
   };
 
   const handleBackToWelcome = () => {
@@ -508,6 +542,7 @@ export default function App() {
                   playsInline
                   muted
                   className="w-full h-full object-cover"
+                  style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
                 />
                 <canvas
                   ref={canvasRef}
@@ -516,10 +551,10 @@ export default function App() {
                 
                 {/* iOS-style scan overlay */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="relative w-64 h-64">
-                    {/* Animated scanning ring */}
-                    <div className="absolute inset-0 border-4 border-indigo-500 rounded-full animate-pulse opacity-50"></div>
-                    <div className="absolute inset-4 border-2 border-white rounded-full opacity-30"></div>
+                  <div className="relative w-72 h-96">
+                    {/* Animated scanning ring - oval shape */}
+                    <div className="absolute inset-0 border-4 border-indigo-500 rounded-full animate-pulse opacity-50" style={{ borderRadius: '50%' }}></div>
+                    <div className="absolute inset-4 border-2 border-white rounded-full opacity-30" style={{ borderRadius: '50%' }}></div>
                     
                     {/* Corner brackets */}
                     <div className="absolute top-0 left-0 w-12 h-12 border-l-4 border-t-4 border-white rounded-tl-3xl"></div>
