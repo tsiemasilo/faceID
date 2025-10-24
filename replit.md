@@ -1,7 +1,7 @@
-# Biometric Attendance System
+# Face ID Recognition App
 
 ## Overview
-A React-based biometric attendance system using Face ID/Touch ID via the WebAuthn API. This application allows users to register with their biometric credentials (Face ID on iOS or fingerprint/face recognition on other devices) and mark attendance using those credentials.
+A React-based face recognition application that uses real-time camera face detection, similar to iOS Face ID. Users can register their face with their name, and the system will recognize them on subsequent uses. Built with face-api.js for accurate face detection and recognition.
 
 ## Project Architecture
 
@@ -10,66 +10,112 @@ A React-based biometric attendance system using Face ID/Touch ID via the WebAuth
 - **Build Tool**: Vite 4
 - **Styling**: Tailwind CSS 3
 - **Icons**: Lucide React
-- **Authentication**: WebAuthn API for biometric authentication
+- **Face Recognition**: face-api.js (TensorFlow.js based)
+- **AI Models**: TinyFaceDetector, FaceLandmark68, FaceRecognition
 
 ### Project Structure
 ```
 /
+├── public/
+│   └── models/                    # AI model weights for face detection
 ├── src/
-│   ├── BiometricAttendance.tsx   # Main component with all functionality
+│   ├── App.tsx                    # Main application component
 │   ├── main.tsx                   # React entry point
 │   └── index.css                  # Tailwind CSS imports
 ├── index.html                     # HTML entry point
 ├── vite.config.ts                 # Vite configuration
 ├── tailwind.config.js             # Tailwind CSS configuration
-├── tsconfig.json                  # TypeScript configuration
 └── package.json                   # Dependencies and scripts
 ```
 
 ## Key Features
-1. **User Registration**: Register new users with their Face ID/Touch ID credentials
-2. **Attendance Marking**: Authenticate using biometrics to mark attendance
-3. **Records Management**: View registered users and attendance history
-4. **Platform Detection**: Automatically detects iOS devices for Face ID
-5. **System Status**: Shows HTTPS and WebAuthn support status
+1. **New User Registration**: 
+   - User enters their name
+   - App requests camera permission (persisted per device)
+   - iOS-style face scanning with animated overlay
+   - Face descriptor saved to localStorage linked to user's name
 
-## Important Notes
+2. **Existing User Recognition**:
+   - Camera activates for face scanning
+   - Real-time face detection and recognition
+   - User's name displayed above their detected face
+   - Fast and accurate matching using face descriptors
 
-### Security Requirements
-- **HTTPS Required**: Face ID and WebAuthn require HTTPS to function. The app will work in the Replit environment and when deployed, but biometric features will show warnings on non-HTTPS connections.
-- **Platform Credentials**: Uses platform authenticators (Face ID, Touch ID) rather than security keys
+3. **iOS-Style UI**:
+   - Gradient background with modern design
+   - Animated circular scanning overlay
+   - Corner brackets similar to Apple Face ID
+   - Smooth transitions and responsive layout
 
-### Development
+4. **Smart Permission Handling**:
+   - Camera permission saved in localStorage
+   - Only asks once per device
+   - Clear permission request flow
+
+## Technical Implementation
+
+### Face Detection & Recognition
+- Uses face-api.js with TensorFlow.js CPU backend
+- TinyFaceDetector for fast face detection
+- 68-point facial landmark detection
+- Face descriptors (128-dimensional vectors) for recognition
+- FaceMatcher with 0.6 threshold for accurate matching
+
+### Storage
+- Face descriptors stored in localStorage as JSON
+- Camera permission status persisted
+- No backend required - fully client-side
+
+### Camera Integration
+- MediaDevices API for camera access
+- Configures for front-facing camera (facingMode: 'user')
+- High-quality video (1280x720 ideal resolution)
+- Real-time video processing with canvas overlay
+
+## Development
 - Development server runs on port 5000
-- Vite dev server configured for Replit environment with hot module replacement
-- All network requests allowed for Replit proxy compatibility
+- Vite dev server configured for Replit environment
+- Hot module replacement enabled
+- Responsive design works on mobile and desktop
 
-### Deployment
+## Deployment
 - Build command: `npm run build`
-- Uses Vite preview server for production
+- Production server: Vite preview
 - Autoscale deployment target (stateless)
+- All models and assets served statically
 
 ## Recent Changes
-- **2024-10-24**: Initial project setup
-  - Created Vite + React + TypeScript project structure
-  - Configured Tailwind CSS for styling
-  - Set up Lucide React for icons
-  - Configured Vite for Replit environment (host 0.0.0.0, port 5000)
-  - Set up development workflow
-  - Configured deployment for autoscale target
+- **2024-10-24**: Complete rebuild from scratch
+  - Removed WebAuthn-based biometric attendance system
+  - Implemented real face recognition with camera
+  - Added face-api.js for ML-based face detection
+  - Created iOS-style scanning interface
+  - Implemented new/existing user flow
+  - Added persistent camera permission handling
+  - Made fully responsive for mobile and web
 
 ## State Management
 The application uses React's built-in `useState` for state management:
-- `users`: Array of registered users with their biometric credentials
-- `attendanceRecords`: Array of attendance records
-- `currentView`: Navigation state ('home', 'register', 'records')
-- `formData`: Form input for user registration
-- `message`: UI feedback messages
-- `isIOS`: iOS device detection flag
-- `systemCheck`: System capability checks (HTTPS, WebAuthn support)
+- `view`: Current screen ('welcome', 'name-input', 'scanning', 'recognition')
+- `isNewUser`: Whether registering a new user or recognizing existing
+- `userName`: Name input for new user registration
+- `modelsLoaded`: AI models loading status
+- `cameraGranted`: Camera permission status
+- `isScanning`: Active face scanning state
+- `message`: User feedback messages
+- `recognizedUser`: Name of recognized user
+- `savedUsers`: Array of registered users with face descriptors
 
 ## Known Limitations
-1. Data is stored in browser memory only (resets on page reload)
-2. No backend persistence - suitable for demo/prototype
-3. Face ID requires HTTPS and won't work on localhost
-4. Best experience on Safari iOS for Face ID
+1. Data stored in localStorage only (no backend)
+2. Face descriptors can be cleared if browser cache is cleared
+3. Works best with good lighting conditions
+4. Requires camera access to function
+5. CPU backend used (slower than GPU but more compatible)
+6. Single face detection per frame (designed for single-user authentication)
+
+## Performance Notes
+- CPU backend ensures compatibility across all devices
+- TinyFaceDetector chosen for speed vs SSD MobileNet
+- Face recognition threshold set to 0.6 for balance of accuracy/false positives
+- Real-time processing at 30fps on modern devices

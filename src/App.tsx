@@ -21,6 +21,7 @@ export default function App() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const isScanningRef = useRef(false);
 
   useEffect(() => {
     loadModels();
@@ -31,6 +32,10 @@ export default function App() {
   const loadModels = async () => {
     try {
       setMessage('Loading AI models...');
+      
+      await faceapi.tf.setBackend('cpu');
+      await faceapi.tf.ready();
+      
       const MODEL_URL = '/models';
       await Promise.all([
         faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
@@ -59,7 +64,7 @@ export default function App() {
     }
   };
 
-  const requestCameraAccess = async () => {
+  const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
@@ -74,14 +79,21 @@ export default function App() {
         streamRef.current = stream;
       }
       
-      localStorage.setItem('cameraPermissionGranted', 'true');
-      setCameraGranted(true);
       return true;
     } catch (error) {
       console.error('Camera access denied:', error);
       setMessage('Camera access is required for face recognition');
       return false;
     }
+  };
+
+  const requestCameraAccess = async () => {
+    const started = await startCamera();
+    if (started) {
+      localStorage.setItem('cameraPermissionGranted', 'true');
+      setCameraGranted(true);
+    }
+    return started;
   };
 
   const startFaceDetection = async () => {
@@ -100,7 +112,7 @@ export default function App() {
     faceapi.matchDimensions(canvas, displaySize);
 
     const detectFaces = async () => {
-      if (!video.paused && !video.ended && isScanning) {
+      if (!video.paused && !video.ended && isScanningRef.current) {
         const detections = await faceapi
           .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
           .withFaceLandmarks()
@@ -133,10 +145,13 @@ export default function App() {
     detectFaces();
   };
 
-  const handleNewUserRegistration = async (detection: faceapi.FaceDetection & faceapi.FaceLandmarks68 & faceapi.FaceDescriptor) => {
+  const handleNewUserRegistration = async (detection: faceapi.WithFaceDescriptor<faceapi.WithFaceLandmarks<{ detection: faceapi.FaceDetection }>>) => {
     if (!userName) return;
 
-    const descriptor = Array.from(detection.descriptor);
+    isScanningRef.current = false;
+    setIsScanning(false);
+
+    const descriptor = Array.from(detection.descriptor) as number[];
     const newUser: SavedUser = {
       name: userName,
       descriptor: descriptor
@@ -146,7 +161,6 @@ export default function App() {
     setSavedUsers(updatedUsers);
     localStorage.setItem('faceIdUsers', JSON.stringify(updatedUsers));
 
-    setIsScanning(false);
     stopCamera();
     setMessage(`✓ Face registered successfully for ${userName}!`);
     
@@ -158,7 +172,7 @@ export default function App() {
   };
 
   const handleExistingUserRecognition = (
-    detection: faceapi.FaceDetection & faceapi.FaceLandmarks68 & faceapi.FaceDescriptor,
+    detection: faceapi.WithFaceDescriptor<faceapi.WithFaceLandmarks<{ detection: faceapi.FaceDetection }>>,
     resizedDetection: any
   ) => {
     if (savedUsers.length === 0) {
@@ -177,6 +191,9 @@ export default function App() {
     const match = faceMatcher.findBestMatch(detection.descriptor);
 
     if (match.label !== 'unknown') {
+      isScanningRef.current = false;
+      setIsScanning(false);
+      
       setRecognizedUser(match.label);
       
       const canvas = canvasRef.current;
@@ -189,6 +206,15 @@ export default function App() {
           ctx.fillText(match.label, box.x, box.y - 10);
         }
       }
+      
+      stopCamera();
+      setMessage(`✓ Welcome back, ${match.label}!`);
+      
+      setTimeout(() => {
+        setView('welcome');
+        setRecognizedUser(null);
+        setMessage('');
+      }, 2500);
     } else {
       setRecognizedUser(null);
     }
@@ -214,9 +240,13 @@ export default function App() {
     if (!cameraGranted) {
       const granted = await requestCameraAccess();
       if (!granted) return;
+    } else {
+      const started = await startCamera();
+      if (!started) return;
     }
     setView('scanning');
     setIsScanning(true);
+    isScanningRef.current = true;
     
     setTimeout(() => {
       if (videoRef.current) {
@@ -236,10 +266,14 @@ export default function App() {
     if (!cameraGranted) {
       const granted = await requestCameraAccess();
       if (!granted) return;
+    } else {
+      const started = await startCamera();
+      if (!started) return;
     }
 
     setView('scanning');
     setIsScanning(true);
+    isScanningRef.current = true;
     setMessage('Position your face in the frame...');
     
     setTimeout(() => {
@@ -252,6 +286,7 @@ export default function App() {
   };
 
   const handleBackToWelcome = () => {
+    isScanningRef.current = false;
     stopCamera();
     setIsScanning(false);
     setView('welcome');
