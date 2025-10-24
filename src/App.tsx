@@ -86,13 +86,43 @@ export default function App() {
         stopCamera();
       }
       
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          facingMode: mode,
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        } 
-      });
+      // Mobile-optimized constraints with fallbacks
+      const constraints: MediaStreamConstraints = {
+        video: {
+          facingMode: { ideal: mode },
+          width: { min: 640, ideal: 1280, max: 1920 },
+          height: { min: 480, ideal: 720, max: 1080 },
+        },
+        audio: false
+      };
+      
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (error) {
+        console.log('Failed with ideal constraints, trying exact facingMode...', error);
+        // Fallback: try with exact facingMode for better mobile support
+        const fallbackConstraints: MediaStreamConstraints = {
+          video: {
+            facingMode: { exact: mode },
+            width: { min: 640, ideal: 1280 },
+            height: { min: 480, ideal: 720 },
+          },
+          audio: false
+        };
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+        } catch (error2) {
+          console.log('Failed with exact facingMode, trying basic constraints...', error2);
+          // Final fallback: basic constraints
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: mode,
+            },
+            audio: false
+          });
+        }
+      }
       
       // If we got here, new stream is successful - now stop old one
       if (keepExistingOnFail && existingStream) {
@@ -478,7 +508,9 @@ export default function App() {
     
     // Temporarily stop face detection
     const wasScanning = isScanningRef.current;
+    console.log('🔄 Flipping camera, wasScanning:', wasScanning);
     isScanningRef.current = false;
+    setIsScanning(false);
     
     // Try to start camera with new facing mode, keeping existing stream if it fails
     const success = await startCamera(newFacingMode, true);
@@ -490,14 +522,30 @@ export default function App() {
       // Resume face detection if it was running, waiting for video readiness
       if (wasScanning && videoRef.current) {
         const video = videoRef.current;
+        let attempts = 0;
+        const maxAttempts = 50; // 5 seconds max
         
         // Wait for video to have dimensions and HAVE_ENOUGH_DATA before resuming
         const waitForReady = () => {
           if (video.videoWidth > 0 && video.videoHeight > 0 && video.readyState >= video.HAVE_ENOUGH_DATA) {
-            console.log('Video ready after camera flip, resuming detection');
+            console.log('✅ Video ready after camera flip, resuming detection');
             isScanningRef.current = true;
-            startFaceDetection();
+            setIsScanning(true);
+            
+            // Use setTimeout to ensure state is updated before starting detection
+            setTimeout(() => {
+              startFaceDetection();
+            }, 100);
           } else {
+            attempts++;
+            if (attempts >= maxAttempts) {
+              console.error('❌ Video not ready after camera flip timeout');
+              setMessage('Camera flip timeout. Please try again.');
+              // Restore scanning state even if video not ready
+              isScanningRef.current = true;
+              setIsScanning(true);
+              return;
+            }
             requestAnimationFrame(waitForReady);
           }
         };
@@ -511,8 +559,12 @@ export default function App() {
       
       // Resume detection with existing camera if it was running
       if (wasScanning) {
+        console.log('🔄 Resuming detection with existing camera');
         isScanningRef.current = true;
-        startFaceDetection();
+        setIsScanning(true);
+        setTimeout(() => {
+          startFaceDetection();
+        }, 100);
       }
     }
   };
