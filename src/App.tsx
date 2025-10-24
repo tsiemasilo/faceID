@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as faceapi from 'face-api.js';
-import { Camera, User, UserPlus, Loader } from 'lucide-react';
+import { Camera, User, UserPlus, Loader, RefreshCw } from 'lucide-react';
 
 interface SavedUser {
   name: string;
@@ -17,6 +17,7 @@ export default function App() {
   const [message, setMessage] = useState('');
   const [recognizedUser, setRecognizedUser] = useState<string | null>(null);
   const [savedUsers, setSavedUsers] = useState<SavedUser[]>([]);
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -64,25 +65,68 @@ export default function App() {
     }
   };
 
-  const startCamera = async () => {
+  const startCamera = async (mode: 'user' | 'environment' = facingMode, keepExistingOnFail: boolean = false) => {
+    const existingStream = streamRef.current;
+    
     try {
+      // Don't stop existing stream yet if we want to keep it on failure
+      if (!keepExistingOnFail) {
+        stopCamera();
+      }
+      
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
-          facingMode: 'user',
+          facingMode: mode,
           width: { ideal: 1280 },
           height: { ideal: 720 }
         } 
       });
       
+      // If we got here, new stream is successful - now stop old one
+      if (keepExistingOnFail && existingStream) {
+        existingStream.getTracks().forEach(track => track.stop());
+      }
+      
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         streamRef.current = stream;
+        
+        // Wait for video to be ready and play
+        await new Promise<void>((resolve, reject) => {
+          if (!videoRef.current) {
+            reject(new Error('Video element not found'));
+            return;
+          }
+          
+          const playVideo = () => {
+            videoRef.current?.play()
+              .then(() => {
+                console.log('Camera started successfully');
+                resolve();
+              })
+              .catch(reject);
+          };
+          
+          // Check if metadata is already loaded
+          if (videoRef.current.readyState >= 2) {
+            playVideo();
+          } else {
+            videoRef.current.onloadedmetadata = playVideo;
+          }
+        });
       }
       
       return true;
     } catch (error) {
-      console.error('Camera access denied:', error);
+      console.error('Camera access error:', error);
       setMessage('Camera access is required for face recognition');
+      
+      // If we were keeping the existing stream and failed, restore it
+      if (keepExistingOnFail && existingStream && videoRef.current) {
+        videoRef.current.srcObject = existingStream;
+        streamRef.current = existingStream;
+      }
+      
       return false;
     }
   };
@@ -230,6 +274,34 @@ export default function App() {
     }
   };
 
+  const flipCamera = async () => {
+    const newFacingMode = facingMode === 'user' ? 'environment' : 'user';
+    
+    // Temporarily stop face detection
+    const wasScanning = isScanningRef.current;
+    isScanningRef.current = false;
+    
+    // Try to start camera with new facing mode, keeping existing stream if it fails
+    const success = await startCamera(newFacingMode, true);
+    
+    if (success) {
+      // Only update state if camera switch succeeded
+      setFacingMode(newFacingMode);
+    } else {
+      // Failed to switch - show message and keep current camera
+      setMessage(`${newFacingMode === 'environment' ? 'Back' : 'Front'} camera not available`);
+      setTimeout(() => setMessage(''), 2000);
+    }
+    
+    // Resume face detection if it was running
+    if (wasScanning) {
+      isScanningRef.current = true;
+      setTimeout(() => {
+        startFaceDetection();
+      }, 100);
+    }
+  };
+
   const handleNewUserFlow = async () => {
     setIsNewUser(true);
     setView('name-input');
@@ -237,24 +309,28 @@ export default function App() {
 
   const handleExistingUserFlow = async () => {
     setIsNewUser(false);
+    
+    let started = false;
     if (!cameraGranted) {
-      const granted = await requestCameraAccess();
-      if (!granted) return;
+      started = await requestCameraAccess();
     } else {
-      const started = await startCamera();
-      if (!started) return;
+      started = await startCamera();
     }
+    
+    if (!started) {
+      setMessage('Failed to start camera. Please try again.');
+      return;
+    }
+    
+    // Only switch to scanning view after camera is ready
     setView('scanning');
     setIsScanning(true);
     isScanningRef.current = true;
     
+    // Start face detection after camera is ready
     setTimeout(() => {
-      if (videoRef.current) {
-        videoRef.current.onloadedmetadata = () => {
-          startFaceDetection();
-        };
-      }
-    }, 100);
+      startFaceDetection();
+    }, 200);
   };
 
   const handleNameSubmit = async () => {
@@ -263,26 +339,30 @@ export default function App() {
       return;
     }
 
+    setMessage('Starting camera...');
+
+    let started = false;
     if (!cameraGranted) {
-      const granted = await requestCameraAccess();
-      if (!granted) return;
+      started = await requestCameraAccess();
     } else {
-      const started = await startCamera();
-      if (!started) return;
+      started = await startCamera();
     }
 
+    if (!started) {
+      setMessage('Failed to start camera. Please try again.');
+      return;
+    }
+
+    // Only switch to scanning view after camera is ready
     setView('scanning');
     setIsScanning(true);
     isScanningRef.current = true;
     setMessage('Position your face in the frame...');
     
+    // Start face detection after camera is ready
     setTimeout(() => {
-      if (videoRef.current) {
-        videoRef.current.onloadedmetadata = () => {
-          startFaceDetection();
-        };
-      }
-    }, 100);
+      startFaceDetection();
+    }, 200);
   };
 
   const handleBackToWelcome = () => {
@@ -448,6 +528,15 @@ export default function App() {
                     <div className="absolute bottom-0 right-0 w-12 h-12 border-r-4 border-b-4 border-white rounded-br-3xl"></div>
                   </div>
                 </div>
+
+                {/* Flip Camera Button */}
+                <button
+                  onClick={flipCamera}
+                  className="absolute bottom-4 right-4 bg-white/20 backdrop-blur-md hover:bg-white/30 text-white p-3 rounded-full shadow-lg transition-all pointer-events-auto"
+                  aria-label="Flip camera"
+                >
+                  <RefreshCw className="w-6 h-6" />
+                </button>
               </div>
             </div>
 
