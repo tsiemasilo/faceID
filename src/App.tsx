@@ -20,6 +20,7 @@ export default function App() {
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const [frameCount, setFrameCount] = useState(0);
   const [detectionStatus, setDetectionStatus] = useState('Initializing...');
+  const [scanningFeature, setScanningFeature] = useState('eyes');
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -28,12 +29,27 @@ export default function App() {
   const frameCountRef = useRef(0);
   const isNewUserRef = useRef(false);
   const userNameRef = useRef('');
+  const scanningFeaturesRef = useRef<string[]>(['eyes', 'nose', 'mouth', 'face shape', 'jawline']);
+  const scanningFeatureIndexRef = useRef(0);
+  const isFlippingCameraRef = useRef(false);
 
   useEffect(() => {
     loadModels();
     loadSavedUsers();
     checkCameraPermission();
   }, []);
+
+  // Cycle through scanning features when scanning is active
+  useEffect(() => {
+    if (!isScanning) return;
+    
+    const interval = setInterval(() => {
+      scanningFeatureIndexRef.current = (scanningFeatureIndexRef.current + 1) % scanningFeaturesRef.current.length;
+      setScanningFeature(scanningFeaturesRef.current[scanningFeatureIndexRef.current]);
+    }, 1500); // Change feature every 1.5 seconds
+    
+    return () => clearInterval(interval);
+  }, [isScanning]);
 
   const loadModels = async () => {
     try {
@@ -531,13 +547,24 @@ export default function App() {
   };
 
   const flipCamera = async () => {
+    // Prevent concurrent camera flips
+    if (isFlippingCameraRef.current) {
+      console.log('⚠️ Camera flip already in progress, ignoring request');
+      return;
+    }
+    
+    isFlippingCameraRef.current = true;
     const newFacingMode = facingMode === 'user' ? 'environment' : 'user';
     
-    // Temporarily stop face detection
+    // Save scanning state but DON'T stop the loop yet
     const wasScanning = isScanningRef.current;
     console.log('🔄 Flipping camera, wasScanning:', wasScanning);
-    isScanningRef.current = false;
-    setIsScanning(false);
+    
+    // Only stop if we were scanning - this allows the current loop to finish gracefully
+    if (wasScanning) {
+      isScanningRef.current = false;
+      setIsScanning(false);
+    }
     
     // Try to start camera with new facing mode, keeping existing stream if it fails
     const success = await startCamera(newFacingMode, true);
@@ -545,6 +572,7 @@ export default function App() {
     if (success) {
       // Only update state if camera switch succeeded
       setFacingMode(newFacingMode);
+      console.log('✅ Camera flipped successfully to:', newFacingMode);
       
       // Resume face detection if it was running, waiting for video readiness
       if (wasScanning && videoRef.current) {
@@ -555,22 +583,35 @@ export default function App() {
         // Wait for video to have dimensions and HAVE_ENOUGH_DATA before resuming
         const waitForReady = () => {
           if (video.videoWidth > 0 && video.videoHeight > 0 && video.readyState >= video.HAVE_ENOUGH_DATA) {
-            console.log('✅ Video ready after camera flip, resuming detection');
+            console.log('✅ Video ready after camera flip, resuming detection at dimensions:', video.videoWidth, 'x', video.videoHeight);
+            
+            // Set scanning state FIRST
             isScanningRef.current = true;
             setIsScanning(true);
             
-            // Use setTimeout to ensure state is updated before starting detection
-            setTimeout(() => {
-              startFaceDetection();
-            }, 100);
+            // Reset frame counter and scanning features
+            frameCountRef.current = 0;
+            setFrameCount(0);
+            scanningFeatureIndexRef.current = 0;
+            setScanningFeature(scanningFeaturesRef.current[0]);
+            
+            // Start new detection loop
+            startFaceDetection();
+            
+            // Release flip lock
+            isFlippingCameraRef.current = false;
           } else {
             attempts++;
             if (attempts >= maxAttempts) {
               console.error('❌ Video not ready after camera flip timeout');
               setMessage('Camera flip timeout. Please try again.');
-              // Restore scanning state even if video not ready
+              // Restore scanning state to allow manual retry
               isScanningRef.current = true;
               setIsScanning(true);
+              // Try to start detection anyway - it has its own retry logic
+              startFaceDetection();
+              // Release flip lock
+              isFlippingCameraRef.current = false;
               return;
             }
             requestAnimationFrame(waitForReady);
@@ -578,6 +619,9 @@ export default function App() {
         };
         
         waitForReady();
+      } else {
+        // Not scanning, just release the lock
+        isFlippingCameraRef.current = false;
       }
     } else {
       // Failed to switch - show message and keep current camera
@@ -586,13 +630,15 @@ export default function App() {
       
       // Resume detection with existing camera if it was running
       if (wasScanning) {
-        console.log('🔄 Resuming detection with existing camera');
+        console.log('🔄 Resuming detection with existing camera after failed flip');
         isScanningRef.current = true;
         setIsScanning(true);
-        setTimeout(() => {
-          startFaceDetection();
-        }, 100);
+        // Restart detection to ensure it's running
+        startFaceDetection();
       }
+      
+      // Release flip lock
+      isFlippingCameraRef.current = false;
     }
   };
 
@@ -615,6 +661,18 @@ export default function App() {
     setIsNewUser(false);
     isNewUserRef.current = false;
     
+    // Switch to scanning view FIRST to render the video element
+    console.log('📺 Switching to scanning view to render video element');
+    setView('scanning');
+    setIsScanning(false);
+    isScanningRef.current = false;
+    setDetectionStatus('Starting camera...');
+    
+    // Wait for next frame to ensure video element is rendered
+    await new Promise(resolve => requestAnimationFrame(() => resolve(null)));
+    
+    // Now start the camera with the rendered video element
+    console.log('📸 Starting camera...');
     let started = false;
     if (!cameraGranted) {
       started = await requestCameraAccess();
@@ -624,16 +682,18 @@ export default function App() {
     
     if (!started) {
       setMessage('Failed to start camera. Please try again.');
+      setView('welcome');
       return;
     }
     
-    console.log('📸 Camera started, switching to scanning view');
-    // Only switch to scanning view after camera is ready
-    setView('scanning');
+    console.log('✅ Camera started successfully, initializing detection');
+    // Set scanning state
     setIsScanning(true);
     isScanningRef.current = true;
     frameCountRef.current = 0;
     setFrameCount(0);
+    scanningFeatureIndexRef.current = 0;
+    setScanningFeature(scanningFeaturesRef.current[0]);
     setDetectionStatus('Initializing detection...');
     
     // Wait for next frame to ensure canvas is rendered, then start detection
@@ -656,8 +716,19 @@ export default function App() {
       userNameRef: userNameRef.current
     });
 
+    // Switch to scanning view FIRST to render the video element
+    console.log('📺 Switching to scanning view to render video element');
+    setView('scanning');
+    setIsScanning(false);
+    isScanningRef.current = false;
+    setDetectionStatus('Starting camera...');
     setMessage('Starting camera...');
 
+    // Wait for next frame to ensure video element is rendered
+    await new Promise(resolve => requestAnimationFrame(() => resolve(null)));
+
+    // Now start the camera with the rendered video element
+    console.log('📸 Starting camera...');
     let started = false;
     if (!cameraGranted) {
       started = await requestCameraAccess();
@@ -667,16 +738,18 @@ export default function App() {
 
     if (!started) {
       setMessage('Failed to start camera. Please try again.');
+      setView('name-input');
       return;
     }
 
-    console.log('📸 Camera started, switching to scanning view for new user');
-    // Only switch to scanning view after camera is ready
-    setView('scanning');
+    console.log('✅ Camera started successfully, initializing detection');
+    // Set scanning state
     setIsScanning(true);
     isScanningRef.current = true;
     frameCountRef.current = 0;
     setFrameCount(0);
+    scanningFeatureIndexRef.current = 0;
+    setScanningFeature(scanningFeaturesRef.current[0]);
     setDetectionStatus('Initializing detection...');
     setMessage('Position your face in the frame...');
     
@@ -698,9 +771,12 @@ export default function App() {
     setMessage('');
     frameCountRef.current = 0;
     setFrameCount(0);
+    scanningFeatureIndexRef.current = 0;
+    setScanningFeature('eyes');
     setDetectionStatus('Initializing...');
     isNewUserRef.current = false;
     userNameRef.current = '';
+    isFlippingCameraRef.current = false;
   };
 
   return (
@@ -874,15 +950,15 @@ export default function App() {
                     <div className="bg-indigo-600/90 backdrop-blur-md text-white px-6 py-3 rounded-full shadow-lg animate-pulse">
                       <div className="flex items-center gap-2">
                         <div className="w-2 h-2 bg-white rounded-full animate-ping"></div>
-                        <span className="font-semibold">Scanning...</span>
+                        <span className="font-semibold">Scanning {scanningFeature}...</span>
                       </div>
                     </div>
                     <div className="mt-2 bg-black/60 backdrop-blur-sm text-white text-xs px-4 py-2 rounded-full">
                       <span>{detectionStatus}</span>
                     </div>
-                    {frameCount > 0 && (
-                      <div className="mt-1 bg-black/40 backdrop-blur-sm text-white text-xs px-3 py-1 rounded-full">
-                        <span>Frame: {frameCount}</span>
+                    {frameCount > 0 && frameCount % 30 === 0 && (
+                      <div className="mt-1 bg-green-500/80 backdrop-blur-sm text-white text-xs px-3 py-1 rounded-full">
+                        <span>✓ Active - Frame {frameCount}</span>
                       </div>
                     )}
                   </div>
