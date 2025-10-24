@@ -220,15 +220,22 @@ export default function App() {
   };
 
   const startFaceDetection = async () => {
-    console.log('startFaceDetection called', { 
+    console.log('🔵 startFaceDetection called', { 
       hasVideo: !!videoRef.current, 
       modelsLoaded,
       hasCanvas: !!canvasRef.current,
-      isScanning: isScanningRef.current
+      isScanningRef: isScanningRef.current,
+      videoElement: videoRef.current ? {
+        videoWidth: videoRef.current.videoWidth,
+        videoHeight: videoRef.current.videoHeight,
+        readyState: videoRef.current.readyState,
+        paused: videoRef.current.paused,
+        ended: videoRef.current.ended
+      } : null
     });
 
     if (!videoRef.current || !modelsLoaded) {
-      console.error('Face detection not started: video or models not ready', {
+      console.error('❌ Face detection not started: video or models not ready', {
         hasVideo: !!videoRef.current,
         modelsLoaded
       });
@@ -273,7 +280,23 @@ export default function App() {
     faceapi.matchDimensions(canvas, displaySize);
 
     const detectFaces = async () => {
-      if (!video.paused && !video.ended && isScanningRef.current) {
+      // Check scanning state first, then video state
+      if (isScanningRef.current) {
+        // If video is paused or ended, try to resume it
+        if (video.paused || video.ended) {
+          if (!video.ended) {
+            console.log('⚠️ Video is paused, attempting to play...');
+            try {
+              await video.play();
+            } catch (error) {
+              console.error('Failed to play video:', error);
+            }
+          } else {
+            console.log('🛑 Video has ended, stopping detection');
+            return;
+          }
+        }
+        
         // Increment frame counter
         frameCountRef.current++;
         
@@ -359,7 +382,11 @@ export default function App() {
       }
     };
 
-    console.log('🚀 Initiating detectFaces loop...');
+    console.log('🚀 Initiating detectFaces loop...', {
+      isScanningRef: isScanningRef.current,
+      videoReady: !video.paused && !video.ended,
+      displaySize
+    });
     frameCountRef.current = 0;
     setFrameCount(0);
     setDetectionStatus('Starting detection...');
