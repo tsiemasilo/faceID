@@ -93,6 +93,15 @@ A React-based face recognition application that uses real-time camera face detec
 - All models and assets served statically
 
 ## Recent Changes
+- **2024-10-24**: Face detection improvements and UI enhancements
+  - Fixed face detection to properly start and run continuously
+  - Added video mirroring for front camera (acts like a mirror)
+  - Changed scanning overlay to larger oval shape (72x96) to better match face proportions
+  - Added canvas mirroring to match video orientation
+  - Improved debugging with console logging for face detection
+  - Fixed animation loop to continue even when video isn't ready
+  - Added readyState check for video data availability
+  
 - **2024-10-24**: Camera functionality fixes and flip camera feature
   - Fixed camera initialization to properly wait for video stream playback
   - Added flip camera button to switch between front and back cameras
