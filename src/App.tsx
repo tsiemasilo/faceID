@@ -459,6 +459,13 @@ export default function App() {
   };
 
   const handleExistingUserFlow = async () => {
+    // Check if there are any registered users first
+    if (savedUsers.length === 0) {
+      setMessage('No registered users found. Please register as a new user first.');
+      setTimeout(() => setMessage(''), 3000);
+      return;
+    }
+    
     setIsNewUser(false);
     
     let started = false;
@@ -590,11 +597,21 @@ export default function App() {
               </button>
             </div>
 
-            {savedUsers.length > 0 && (
-              <div className="mt-8 text-center">
+            <div className="mt-8 text-center">
+              {savedUsers.length > 0 ? (
                 <p className="text-sm text-gray-500">
                   {savedUsers.length} registered user{savedUsers.length !== 1 ? 's' : ''}
                 </p>
+              ) : (
+                <p className="text-sm text-amber-600 bg-amber-50 px-4 py-2 rounded-lg border border-amber-200">
+                  No registered users yet. Start by registering as a new user.
+                </p>
+              )}
+            </div>
+            
+            {message && (
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-center text-sm">
+                {message}
               </div>
             )}
           </div>
