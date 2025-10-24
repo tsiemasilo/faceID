@@ -93,6 +93,12 @@ A React-based face recognition application that uses real-time camera face detec
 - All models and assets served statically
 
 ## Recent Changes
+- **2024-10-24**: UX improvements for existing user authentication flow
+  - Added validation check to prevent camera from starting when no users are registered
+  - Display helpful error message when user clicks "Existing User" with no registered profiles
+  - Improved welcome screen to show clear warning when no users exist (instead of only showing count)
+  - Enhanced user guidance to encourage new user registration before attempting authentication
+
 - **2024-10-24**: Face detection improvements and UI enhancements
   - Fixed face detection to properly start and run continuously
   - Added video mirroring for front camera (acts like a mirror)
