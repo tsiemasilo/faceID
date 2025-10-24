@@ -91,27 +91,64 @@ export default function App() {
         videoRef.current.srcObject = stream;
         streamRef.current = stream;
         
-        // Wait for video to be ready and play
+        // Wait for video to be ready with proper dimensions
         await new Promise<void>((resolve, reject) => {
           if (!videoRef.current) {
             reject(new Error('Video element not found'));
             return;
           }
           
-          const playVideo = () => {
-            videoRef.current?.play()
-              .then(() => {
-                console.log('Camera started successfully');
-                resolve();
-              })
-              .catch(reject);
+          const video = videoRef.current;
+          let attempts = 0;
+          const maxAttempts = 50; // 5 seconds max
+          
+          const checkVideoReady = () => {
+            // Check if video has dimensions and is ready to play
+            if (video.videoWidth > 0 && video.videoHeight > 0 && video.readyState >= 2) {
+              console.log('Camera ready with dimensions:', video.videoWidth, 'x', video.videoHeight);
+              
+              // Retry play() on recoverable errors
+              let playAttempts = 0;
+              const maxPlayAttempts = 3;
+              
+              const tryPlay = () => {
+                video.play()
+                  .then(() => {
+                    console.log('Camera started successfully');
+                    resolve();
+                  })
+                  .catch((error) => {
+                    playAttempts++;
+                    if (playAttempts < maxPlayAttempts && (error.name === 'NotAllowedError' || error.name === 'AbortError')) {
+                      console.log(`Play attempt ${playAttempts} failed, retrying...`, error.name);
+                      setTimeout(tryPlay, 100);
+                    } else {
+                      reject(error);
+                    }
+                  });
+              };
+              
+              tryPlay();
+            } else {
+              attempts++;
+              if (attempts >= maxAttempts) {
+                reject(new Error('Video dimensions timeout'));
+                return;
+              }
+              // Check again in 100ms
+              setTimeout(checkVideoReady, 100);
+            }
           };
           
-          // Check if metadata is already loaded
-          if (videoRef.current.readyState >= 2) {
-            playVideo();
-          } else {
-            videoRef.current.onloadedmetadata = playVideo;
+          // Start checking immediately
+          video.onloadedmetadata = () => {
+            console.log('Video metadata loaded');
+            checkVideoReady();
+          };
+          
+          // Also check if metadata is already loaded
+          if (video.readyState >= 1) {
+            checkVideoReady();
           }
         });
       }
@@ -141,8 +178,18 @@ export default function App() {
   };
 
   const startFaceDetection = async () => {
+    console.log('startFaceDetection called', { 
+      hasVideo: !!videoRef.current, 
+      modelsLoaded,
+      hasCanvas: !!canvasRef.current,
+      isScanning: isScanningRef.current
+    });
+
     if (!videoRef.current || !modelsLoaded) {
-      console.log('Face detection not started: video or models not ready');
+      console.error('Face detection not started: video or models not ready', {
+        hasVideo: !!videoRef.current,
+        modelsLoaded
+      });
       return;
     }
 
@@ -150,14 +197,28 @@ export default function App() {
     const canvas = canvasRef.current;
     
     if (!canvas) {
-      console.log('Face detection not started: canvas not ready');
+      console.error('Face detection not started: canvas not ready');
+      // Retry until canvas is ready
+      requestAnimationFrame(() => {
+        if (isScanningRef.current) {
+          startFaceDetection();
+        }
+      });
       return;
     }
 
-    // Wait for video to have dimensions
+    // Retry until video has dimensions (with safety limit)
     if (video.videoWidth === 0 || video.videoHeight === 0) {
-      console.log('Waiting for video dimensions...');
-      setTimeout(() => startFaceDetection(), 100);
+      console.log('Video dimensions not ready yet, retrying...', { 
+        width: video.videoWidth, 
+        height: video.videoHeight,
+        readyState: video.readyState
+      });
+      requestAnimationFrame(() => {
+        if (isScanningRef.current) {
+          startFaceDetection();
+        }
+      });
       return;
     }
 
@@ -166,7 +227,7 @@ export default function App() {
       height: video.videoHeight 
     };
     
-    console.log('Starting face detection with size:', displaySize);
+    console.log('✅ Starting face detection with size:', displaySize);
     faceapi.matchDimensions(canvas, displaySize);
 
     const detectFaces = async () => {
@@ -321,18 +382,34 @@ export default function App() {
     if (success) {
       // Only update state if camera switch succeeded
       setFacingMode(newFacingMode);
+      
+      // Resume face detection if it was running, waiting for video readiness
+      if (wasScanning && videoRef.current) {
+        const video = videoRef.current;
+        
+        // Wait for video to have dimensions and HAVE_ENOUGH_DATA before resuming
+        const waitForReady = () => {
+          if (video.videoWidth > 0 && video.videoHeight > 0 && video.readyState >= video.HAVE_ENOUGH_DATA) {
+            console.log('Video ready after camera flip, resuming detection');
+            isScanningRef.current = true;
+            startFaceDetection();
+          } else {
+            requestAnimationFrame(waitForReady);
+          }
+        };
+        
+        waitForReady();
+      }
     } else {
       // Failed to switch - show message and keep current camera
       setMessage(`${newFacingMode === 'environment' ? 'Back' : 'Front'} camera not available`);
       setTimeout(() => setMessage(''), 2000);
-    }
-    
-    // Resume face detection if it was running
-    if (wasScanning) {
-      isScanningRef.current = true;
-      setTimeout(() => {
+      
+      // Resume detection with existing camera if it was running
+      if (wasScanning) {
+        isScanningRef.current = true;
         startFaceDetection();
-      }, 100);
+      }
     }
   };
 
@@ -361,10 +438,10 @@ export default function App() {
     setIsScanning(true);
     isScanningRef.current = true;
     
-    // Start face detection after camera is ready
-    setTimeout(() => {
+    // Wait for next frame to ensure canvas is rendered, then start detection
+    requestAnimationFrame(() => {
       startFaceDetection();
-    }, 500);
+    });
   };
 
   const handleNameSubmit = async () => {
@@ -393,10 +470,10 @@ export default function App() {
     isScanningRef.current = true;
     setMessage('Position your face in the frame...');
     
-    // Start face detection after camera is ready
-    setTimeout(() => {
+    // Wait for next frame to ensure canvas is rendered, then start detection
+    requestAnimationFrame(() => {
       startFaceDetection();
-    }, 500);
+    });
   };
 
   const handleBackToWelcome = () => {
