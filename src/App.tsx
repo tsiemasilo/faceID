@@ -26,6 +26,8 @@ export default function App() {
   const streamRef = useRef<MediaStream | null>(null);
   const isScanningRef = useRef(false);
   const frameCountRef = useRef(0);
+  const isNewUserRef = useRef(false);
+  const userNameRef = useRef('');
 
   useEffect(() => {
     loadModels();
@@ -35,21 +37,28 @@ export default function App() {
 
   const loadModels = async () => {
     try {
+      console.log('🔄 Starting to load AI models...');
       setMessage('Loading AI models...');
       
+      console.log('⚙️ Setting TensorFlow backend to CPU...');
       await faceapi.tf.setBackend('cpu');
       await faceapi.tf.ready();
+      console.log('✅ TensorFlow backend ready');
       
       const MODEL_URL = '/models';
+      console.log('📦 Loading models from:', MODEL_URL);
+      
       await Promise.all([
         faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
         faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
         faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
       ]);
+      
+      console.log('✅ All models loaded successfully!');
       setModelsLoaded(true);
       setMessage('');
     } catch (error) {
-      console.error('Error loading models:', error);
+      console.error('❌ Error loading models:', error);
       setMessage('Error loading face detection models');
     }
   };
@@ -277,7 +286,14 @@ export default function App() {
                   // Restore the transform state
                   ctx.restore();
 
-                  if (isNewUser) {
+                  // Use refs to avoid stale closure values
+                  console.log('🎯 Face detected - checking registration type', {
+                    isNewUser: isNewUserRef.current,
+                    userName: userNameRef.current,
+                    frame: frameCountRef.current
+                  });
+
+                  if (isNewUserRef.current) {
                     handleNewUserRegistration(detections[0]);
                   } else {
                     handleExistingUserRecognition(detections[0], resizedDetections[0]);
@@ -321,31 +337,79 @@ export default function App() {
   };
 
   const handleNewUserRegistration = async (detection: faceapi.WithFaceDescriptor<faceapi.WithFaceLandmarks<{ detection: faceapi.FaceDetection }>>) => {
-    if (!userName) return;
+    console.log('🚀 handleNewUserRegistration called', {
+      hasDetection: !!detection,
+      hasDescriptor: !!detection?.descriptor,
+      userName: userNameRef.current,
+      userNameState: userName,
+      savedUsersCount: savedUsers.length
+    });
 
-    console.log('✅ Registering new user:', userName);
+    // Check userName from ref (which should be current)
+    const currentUserName = userNameRef.current;
+    
+    if (!currentUserName || !currentUserName.trim()) {
+      console.error('❌ Registration failed: userName is empty!', {
+        userNameRef: userNameRef.current,
+        userNameState: userName
+      });
+      setMessage('Error: Name not found. Please try again.');
+      return;
+    }
+
+    if (!detection || !detection.descriptor) {
+      console.error('❌ Registration failed: No face descriptor!');
+      setMessage('Error: Could not capture face data. Please try again.');
+      return;
+    }
+
+    console.log('✅ Registering new user:', currentUserName);
     isScanningRef.current = false;
     setIsScanning(false);
     setDetectionStatus('Face captured!');
 
-    const descriptor = Array.from(detection.descriptor) as number[];
-    const newUser: SavedUser = {
-      name: userName,
-      descriptor: descriptor
-    };
+    try {
+      const descriptor = Array.from(detection.descriptor) as number[];
+      console.log('📊 Face descriptor extracted, length:', descriptor.length);
+      
+      const newUser: SavedUser = {
+        name: currentUserName,
+        descriptor: descriptor
+      };
 
-    const updatedUsers = [...savedUsers, newUser];
-    setSavedUsers(updatedUsers);
-    localStorage.setItem('faceIdUsers', JSON.stringify(updatedUsers));
+      const updatedUsers = [...savedUsers, newUser];
+      setSavedUsers(updatedUsers);
+      
+      console.log('💾 Saving to localStorage...', {
+        totalUsers: updatedUsers.length,
+        newUserName: currentUserName
+      });
+      
+      localStorage.setItem('faceIdUsers', JSON.stringify(updatedUsers));
+      console.log('✅ Successfully saved to localStorage!');
 
-    stopCamera();
-    setMessage(`✓ Face registered successfully for ${userName}!`);
-    
-    setTimeout(() => {
-      setView('welcome');
-      setUserName('');
-      setMessage('');
-    }, 3000);
+      stopCamera();
+      setMessage(`✓ Face registered successfully for ${currentUserName}!`);
+      
+      setTimeout(() => {
+        setView('welcome');
+        setUserName('');
+        setMessage('');
+        isNewUserRef.current = false;
+        userNameRef.current = '';
+      }, 3000);
+    } catch (error) {
+      console.error('❌ Error during registration:', error);
+      setMessage('Error saving face data. Please try again.');
+      isScanningRef.current = true;
+      setIsScanning(true);
+      
+      // Restart face detection loop if video and canvas are ready
+      if (videoRef.current && canvasRef.current && videoRef.current.videoWidth > 0 && videoRef.current.videoHeight > 0) {
+        console.log('🔄 Restarting face detection after registration error');
+        startFaceDetection();
+      }
+    }
   };
 
   const handleExistingUserRecognition = (
@@ -454,11 +518,14 @@ export default function App() {
   };
 
   const handleNewUserFlow = async () => {
+    console.log('👤 Starting new user flow');
     setIsNewUser(true);
+    isNewUserRef.current = true;
     setView('name-input');
   };
 
   const handleExistingUserFlow = async () => {
+    console.log('🔍 Starting existing user flow');
     // Check if there are any registered users first
     if (savedUsers.length === 0) {
       setMessage('No registered users found. Please register as a new user first.');
@@ -467,6 +534,7 @@ export default function App() {
     }
     
     setIsNewUser(false);
+    isNewUserRef.current = false;
     
     let started = false;
     if (!cameraGranted) {
@@ -501,6 +569,13 @@ export default function App() {
       setMessage('Please enter your name');
       return;
     }
+
+    console.log('📝 Name submitted:', userName);
+    userNameRef.current = userName.trim();
+    console.log('📋 Refs updated:', {
+      isNewUserRef: isNewUserRef.current,
+      userNameRef: userNameRef.current
+    });
 
     setMessage('Starting camera...');
 
@@ -545,6 +620,8 @@ export default function App() {
     frameCountRef.current = 0;
     setFrameCount(0);
     setDetectionStatus('Initializing...');
+    isNewUserRef.current = false;
+    userNameRef.current = '';
   };
 
   return (
