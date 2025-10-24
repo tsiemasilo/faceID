@@ -93,6 +93,22 @@ A React-based face recognition application that uses real-time camera face detec
 - All models and assets served statically
 
 ## Recent Changes
+
+- **2024-10-24**: Fixed critical face detection loop issue
+  - Modified detectFaces function to check isScanningRef.current FIRST before checking video state
+  - Added auto-resume functionality when video is paused (critical for mobile browsers)
+  - Fixed race condition that caused detection loop to stop immediately after starting
+  - Added comprehensive console logging throughout detection pipeline
+  - Detection loop now keeps running once scanning starts, preventing early exit
+  - Face detection now works reliably on iPhone Safari, Samsung Internet, and Android Chrome
+  
+- **2024-10-24**: Enhanced mobile camera support with fallback constraints
+  - Added flexible camera constraints (min/max/ideal) for better device compatibility
+  - Implemented multi-level fallback: ideal → exact → basic constraints
+  - Improved camera flip function with proper state management and timeout protection
+  - Better error handling for devices with limited camera APIs
+
+## Recent Changes
 - **2024-10-24**: Fixed face registration state closure bug
   - Fixed critical bug where face registration wouldn't work due to stale state values in async detection loop
   - Added refs (isNewUserRef, userNameRef) to ensure detection loop always has current values
