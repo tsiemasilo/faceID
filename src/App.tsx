@@ -93,6 +93,37 @@ export default function App() {
     }
   };
 
+  // Helper function to apply mobile-optimized camera constraints
+  const applyMobileConstraints = async (stream: MediaStream) => {
+    try {
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack) {
+        const capabilities = videoTrack.getCapabilities?.() as any;
+        
+        // Build advanced constraints based on what's supported
+        const advancedConstraints: any = {};
+        
+        if (capabilities?.focusMode?.includes?.('continuous')) {
+          advancedConstraints.focusMode = 'continuous';
+        }
+        
+        if (capabilities?.zoom) {
+          advancedConstraints.zoom = 1.0;
+        }
+        
+        // Apply constraints if we have any
+        if (Object.keys(advancedConstraints).length > 0) {
+          await videoTrack.applyConstraints({
+            advanced: [advancedConstraints]
+          } as any);
+          console.log('✅ Applied mobile camera constraints:', advancedConstraints);
+        }
+      }
+    } catch (e) {
+      console.log('⚠️ Could not apply advanced camera constraints (browser may not support):', e);
+    }
+  };
+
   const startCamera = async (mode: 'user' | 'environment' = facingMode, keepExistingOnFail: boolean = false) => {
     const existingStream = streamRef.current;
     
@@ -115,6 +146,7 @@ export default function App() {
       let stream: MediaStream;
       try {
         stream = await navigator.mediaDevices.getUserMedia(constraints);
+        await applyMobileConstraints(stream);
       } catch (error) {
         console.log('Failed with ideal constraints, trying exact facingMode...', error);
         // Fallback: try with exact facingMode for better mobile support
@@ -128,6 +160,7 @@ export default function App() {
         };
         try {
           stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+          await applyMobileConstraints(stream);
         } catch (error2) {
           console.log('Failed with exact facingMode, trying basic constraints...', error2);
           // Final fallback: basic constraints
@@ -137,6 +170,7 @@ export default function App() {
             },
             audio: false
           });
+          await applyMobileConstraints(stream);
         }
       }
       
@@ -349,8 +383,9 @@ export default function App() {
                   
                   ctx.clearRect(0, 0, canvas.width, canvas.height);
                   
-                  faceapi.draw.drawDetections(canvas, resizedDetections);
-                  faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
+                  // Face model visualization hidden for privacy
+                  // faceapi.draw.drawDetections(canvas, resizedDetections);
+                  // faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
 
                   // Restore the transform state
                   ctx.restore();
