@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import * as faceapi from 'face-api.js';
 import { Camera, User, UserPlus, Loader, RefreshCw } from 'lucide-react';
 
@@ -18,11 +18,14 @@ export default function App() {
   const [recognizedUser, setRecognizedUser] = useState<string | null>(null);
   const [savedUsers, setSavedUsers] = useState<SavedUser[]>([]);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
+  const [frameCount, setFrameCount] = useState(0);
+  const [detectionStatus, setDetectionStatus] = useState('Initializing...');
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const isScanningRef = useRef(false);
+  const frameCountRef = useRef(0);
 
   useEffect(() => {
     loadModels();
@@ -232,6 +235,15 @@ export default function App() {
 
     const detectFaces = async () => {
       if (!video.paused && !video.ended && isScanningRef.current) {
+        // Increment frame counter
+        frameCountRef.current++;
+        
+        // Log every 30 frames to avoid flooding console
+        if (frameCountRef.current % 30 === 0) {
+          console.log(`🔍 Detection loop running - Frame ${frameCountRef.current}`);
+          setFrameCount(frameCountRef.current);
+        }
+        
         if (video.readyState === video.HAVE_ENOUGH_DATA) {
           try {
             const detections = await faceapi
@@ -240,7 +252,9 @@ export default function App() {
               .withFaceDescriptors();
 
             if (detections.length > 0) {
-              console.log('Face detected!');
+              console.log(`✅ Face detected! Count: ${detections.length}, Frame: ${frameCountRef.current}`);
+              setDetectionStatus(`Face detected! (${detections.length})`);
+              
               const resizedDetections = faceapi.resizeResults(detections, displaySize);
               
               if (canvas) {
@@ -270,25 +284,49 @@ export default function App() {
                   }
                 }
               }
+            } else {
+              // Update status when no face is detected
+              if (frameCountRef.current % 30 === 0) {
+                setDetectionStatus('Scanning for faces...');
+              }
             }
           } catch (error) {
-            console.error('Face detection error:', error);
+            console.error('❌ Face detection error:', error);
+            setDetectionStatus('Detection error');
+          }
+        } else {
+          // Video not ready
+          if (frameCountRef.current % 30 === 0) {
+            console.log('⏳ Video not ready yet, readyState:', video.readyState);
+            setDetectionStatus('Waiting for video...');
           }
         }
         
         // Always request next frame to keep the loop running
         requestAnimationFrame(detectFaces);
+      } else {
+        console.log('🛑 Detection loop stopped', {
+          paused: video.paused,
+          ended: video.ended,
+          isScanningRef: isScanningRef.current
+        });
       }
     };
 
+    console.log('🚀 Initiating detectFaces loop...');
+    frameCountRef.current = 0;
+    setFrameCount(0);
+    setDetectionStatus('Starting detection...');
     detectFaces();
   };
 
   const handleNewUserRegistration = async (detection: faceapi.WithFaceDescriptor<faceapi.WithFaceLandmarks<{ detection: faceapi.FaceDetection }>>) => {
     if (!userName) return;
 
+    console.log('✅ Registering new user:', userName);
     isScanningRef.current = false;
     setIsScanning(false);
+    setDetectionStatus('Face captured!');
 
     const descriptor = Array.from(detection.descriptor) as number[];
     const newUser: SavedUser = {
@@ -330,8 +368,10 @@ export default function App() {
     const match = faceMatcher.findBestMatch(detection.descriptor);
 
     if (match.label !== 'unknown') {
+      console.log('✅ User recognized:', match.label);
       isScanningRef.current = false;
       setIsScanning(false);
+      setDetectionStatus(`Recognized: ${match.label}`);
       
       setRecognizedUser(match.label);
       
@@ -433,13 +473,18 @@ export default function App() {
       return;
     }
     
+    console.log('📸 Camera started, switching to scanning view');
     // Only switch to scanning view after camera is ready
     setView('scanning');
     setIsScanning(true);
     isScanningRef.current = true;
+    frameCountRef.current = 0;
+    setFrameCount(0);
+    setDetectionStatus('Initializing detection...');
     
     // Wait for next frame to ensure canvas is rendered, then start detection
     requestAnimationFrame(() => {
+      console.log('🎬 Starting face detection from handleExistingUserFlow');
       startFaceDetection();
     });
   };
@@ -464,19 +509,25 @@ export default function App() {
       return;
     }
 
+    console.log('📸 Camera started, switching to scanning view for new user');
     // Only switch to scanning view after camera is ready
     setView('scanning');
     setIsScanning(true);
     isScanningRef.current = true;
+    frameCountRef.current = 0;
+    setFrameCount(0);
+    setDetectionStatus('Initializing detection...');
     setMessage('Position your face in the frame...');
     
     // Wait for next frame to ensure canvas is rendered, then start detection
     requestAnimationFrame(() => {
+      console.log('🎬 Starting face detection from handleNameSubmit');
       startFaceDetection();
     });
   };
 
   const handleBackToWelcome = () => {
+    console.log('🔙 Returning to welcome screen');
     isScanningRef.current = false;
     stopCamera();
     setIsScanning(false);
@@ -484,6 +535,9 @@ export default function App() {
     setUserName('');
     setRecognizedUser(null);
     setMessage('');
+    frameCountRef.current = 0;
+    setFrameCount(0);
+    setDetectionStatus('Initializing...');
   };
 
   return (
@@ -640,6 +694,26 @@ export default function App() {
                     <div className="absolute bottom-0 right-0 w-12 h-12 border-r-4 border-b-4 border-white rounded-br-3xl"></div>
                   </div>
                 </div>
+
+                {/* Visual Scanning Indicator */}
+                {isScanning && (
+                  <div className="absolute top-4 left-0 right-0 flex flex-col items-center pointer-events-none">
+                    <div className="bg-indigo-600/90 backdrop-blur-md text-white px-6 py-3 rounded-full shadow-lg animate-pulse">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-white rounded-full animate-ping"></div>
+                        <span className="font-semibold">Scanning...</span>
+                      </div>
+                    </div>
+                    <div className="mt-2 bg-black/60 backdrop-blur-sm text-white text-xs px-4 py-2 rounded-full">
+                      <span>{detectionStatus}</span>
+                    </div>
+                    {frameCount > 0 && (
+                      <div className="mt-1 bg-black/40 backdrop-blur-sm text-white text-xs px-3 py-1 rounded-full">
+                        <span>Frame: {frameCount}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Flip Camera Button */}
                 <button
