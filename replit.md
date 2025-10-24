@@ -46,11 +46,17 @@ A React-based face recognition application that uses real-time camera face detec
    - Animated circular scanning overlay
    - Corner brackets similar to Apple Face ID
    - Smooth transitions and responsive layout
+   - Flip camera button to switch between front and back cameras
 
 4. **Smart Permission Handling**:
    - Camera permission saved in localStorage
    - Only asks once per device
    - Clear permission request flow
+
+5. **Camera Flexibility**:
+   - Switch between front-facing and rear-facing cameras
+   - Graceful fallback if alternate camera unavailable
+   - Maintains active stream when camera switch fails
 
 ## Technical Implementation
 
@@ -68,9 +74,11 @@ A React-based face recognition application that uses real-time camera face detec
 
 ### Camera Integration
 - MediaDevices API for camera access
-- Configures for front-facing camera (facingMode: 'user')
+- Supports both front-facing ('user') and rear-facing ('environment') cameras
+- Flip camera button with graceful fallback on failure
 - High-quality video (1280x720 ideal resolution)
 - Real-time video processing with canvas overlay
+- Robust error handling with stream preservation on camera switch failures
 
 ## Development
 - Development server runs on port 5000
@@ -85,6 +93,14 @@ A React-based face recognition application that uses real-time camera face detec
 - All models and assets served statically
 
 ## Recent Changes
+- **2024-10-24**: Camera functionality fixes and flip camera feature
+  - Fixed camera initialization to properly wait for video stream playback
+  - Added flip camera button to switch between front and back cameras
+  - Implemented graceful fallback when switching to unavailable camera
+  - Fixed UI flow to only show scanning view after camera successfully starts
+  - Added stream preservation when camera switch fails
+  - Improved error handling and user feedback
+
 - **2024-10-24**: Complete rebuild from scratch
   - Removed WebAuthn-based biometric attendance system
   - Implemented real face recognition with camera
@@ -105,6 +121,7 @@ The application uses React's built-in `useState` for state management:
 - `message`: User feedback messages
 - `recognizedUser`: Name of recognized user
 - `savedUsers`: Array of registered users with face descriptors
+- `facingMode`: Current camera mode ('user' for front, 'environment' for back)
 
 ## Known Limitations
 1. Data stored in localStorage only (no backend)
