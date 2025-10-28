@@ -18,9 +18,7 @@ export default function App() {
   const [recognizedUser, setRecognizedUser] = useState<string | null>(null);
   const [savedUsers, setSavedUsers] = useState<SavedUser[]>([]);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
-  const [frameCount, setFrameCount] = useState(0);
   const [detectionStatus, setDetectionStatus] = useState('Initializing...');
-  const [scanningFeature, setScanningFeature] = useState('eyes');
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -29,8 +27,6 @@ export default function App() {
   const frameCountRef = useRef(0);
   const isNewUserRef = useRef(false);
   const userNameRef = useRef('');
-  const scanningFeaturesRef = useRef<string[]>(['eyes', 'nose', 'mouth', 'face shape', 'jawline']);
-  const scanningFeatureIndexRef = useRef(0);
   const isFlippingCameraRef = useRef(false);
 
   useEffect(() => {
@@ -38,18 +34,6 @@ export default function App() {
     loadSavedUsers();
     checkCameraPermission();
   }, []);
-
-  // Cycle through scanning features when scanning is active
-  useEffect(() => {
-    if (!isScanning) return;
-    
-    const interval = setInterval(() => {
-      scanningFeatureIndexRef.current = (scanningFeatureIndexRef.current + 1) % scanningFeaturesRef.current.length;
-      setScanningFeature(scanningFeaturesRef.current[scanningFeatureIndexRef.current]);
-    }, 1500); // Change feature every 1.5 seconds
-    
-    return () => clearInterval(interval);
-  }, [isScanning]);
 
   const loadModels = async () => {
     try {
@@ -353,7 +337,6 @@ export default function App() {
         // Log every 30 frames to avoid flooding console
         if (frameCountRef.current % 30 === 0) {
           console.log(`🔍 Detection loop running - Frame ${frameCountRef.current}`);
-          setFrameCount(frameCountRef.current);
         }
         
         if (video.readyState === video.HAVE_ENOUGH_DATA) {
@@ -439,7 +422,6 @@ export default function App() {
       displaySize
     });
     frameCountRef.current = 0;
-    setFrameCount(0);
     setDetectionStatus('Starting detection...');
     detectFaces();
   };
@@ -624,11 +606,8 @@ export default function App() {
             isScanningRef.current = true;
             setIsScanning(true);
             
-            // Reset frame counter and scanning features
+            // Reset frame counter
             frameCountRef.current = 0;
-            setFrameCount(0);
-            scanningFeatureIndexRef.current = 0;
-            setScanningFeature(scanningFeaturesRef.current[0]);
             
             // Start new detection loop
             startFaceDetection();
@@ -726,9 +705,6 @@ export default function App() {
     setIsScanning(true);
     isScanningRef.current = true;
     frameCountRef.current = 0;
-    setFrameCount(0);
-    scanningFeatureIndexRef.current = 0;
-    setScanningFeature(scanningFeaturesRef.current[0]);
     setDetectionStatus('Initializing detection...');
     
     // Wait for next frame to ensure canvas is rendered, then start detection
@@ -782,9 +758,6 @@ export default function App() {
     setIsScanning(true);
     isScanningRef.current = true;
     frameCountRef.current = 0;
-    setFrameCount(0);
-    scanningFeatureIndexRef.current = 0;
-    setScanningFeature(scanningFeaturesRef.current[0]);
     setDetectionStatus('Initializing detection...');
     setMessage('Position your face in the frame...');
     
@@ -805,9 +778,6 @@ export default function App() {
     setRecognizedUser(null);
     setMessage('');
     frameCountRef.current = 0;
-    setFrameCount(0);
-    scanningFeatureIndexRef.current = 0;
-    setScanningFeature('eyes');
     setDetectionStatus('Initializing...');
     isNewUserRef.current = false;
     userNameRef.current = '';
@@ -964,38 +934,43 @@ export default function App() {
                   className="absolute top-0 left-0 w-full h-full"
                 />
                 
-                {/* iOS-style scan overlay */}
+                {/* Face guide overlay - oval shape */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="relative w-72 h-96">
-                    {/* Animated scanning ring - oval shape */}
-                    <div className="absolute inset-0 border-4 border-indigo-500 rounded-full animate-pulse opacity-50" style={{ borderRadius: '50%' }}></div>
-                    <div className="absolute inset-4 border-2 border-white rounded-full opacity-30" style={{ borderRadius: '50%' }}></div>
+                  <div className="relative" style={{ width: '280px', height: '380px' }}>
+                    {/* Main oval guide */}
+                    <div 
+                      className="absolute inset-0 border-4 border-white/60 shadow-lg"
+                      style={{ 
+                        borderRadius: '50%',
+                        boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.5)'
+                      }}
+                    ></div>
                     
-                    {/* Corner brackets */}
-                    <div className="absolute top-0 left-0 w-12 h-12 border-l-4 border-t-4 border-white rounded-tl-3xl"></div>
-                    <div className="absolute top-0 right-0 w-12 h-12 border-r-4 border-t-4 border-white rounded-tr-3xl"></div>
-                    <div className="absolute bottom-0 left-0 w-12 h-12 border-l-4 border-b-4 border-white rounded-bl-3xl"></div>
-                    <div className="absolute bottom-0 right-0 w-12 h-12 border-r-4 border-b-4 border-white rounded-br-3xl"></div>
+                    {/* Animated scanning line - moves vertically */}
+                    {isScanning && (
+                      <div 
+                        className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-indigo-400 to-transparent animate-scan"
+                        style={{ 
+                          top: '0',
+                          animation: 'scan 2s ease-in-out infinite'
+                        }}
+                      ></div>
+                    )}
+                    
+                    {/* Inner oval ring - animated pulse */}
+                    <div 
+                      className="absolute inset-6 border-2 border-indigo-400/40 animate-pulse"
+                      style={{ borderRadius: '50%' }}
+                    ></div>
                   </div>
                 </div>
 
-                {/* Visual Scanning Indicator */}
+                {/* Status indicator - minimal */}
                 {isScanning && (
-                  <div className="absolute top-4 left-0 right-0 flex flex-col items-center pointer-events-none">
-                    <div className="bg-indigo-600/90 backdrop-blur-md text-white px-6 py-3 rounded-full shadow-lg animate-pulse">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-white rounded-full animate-ping"></div>
-                        <span className="font-semibold">Scanning {scanningFeature}...</span>
-                      </div>
-                    </div>
-                    <div className="mt-2 bg-black/60 backdrop-blur-sm text-white text-xs px-4 py-2 rounded-full">
+                  <div className="absolute top-6 left-0 right-0 flex flex-col items-center pointer-events-none">
+                    <div className="bg-black/60 backdrop-blur-sm text-white text-sm px-5 py-2 rounded-full">
                       <span>{detectionStatus}</span>
                     </div>
-                    {frameCount > 0 && frameCount % 30 === 0 && (
-                      <div className="mt-1 bg-green-500/80 backdrop-blur-sm text-white text-xs px-3 py-1 rounded-full">
-                        <span>✓ Active - Frame {frameCount}</span>
-                      </div>
-                    )}
                   </div>
                 )}
 
