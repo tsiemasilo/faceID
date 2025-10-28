@@ -11,7 +11,9 @@ app.use(express.json({ limit: '50mb' }));
 
 const pool = new Pool({
   connectionString: process.env.NETLIFY_DATABASE_URL,
-  ssl: {
+  ssl: process.env.NODE_ENV === 'production' ? {
+    rejectUnauthorized: true
+  } : {
     rejectUnauthorized: false
   }
 });
@@ -90,7 +92,7 @@ app.delete('/api/users', async (req, res) => {
   try {
     const { password } = req.body;
     
-    const CLEAR_PASSWORD = '0852Tsie';
+    const CLEAR_PASSWORD = process.env.CLEAR_USERS_PASSWORD || '0852Tsie';
     
     if (password !== CLEAR_PASSWORD) {
       return res.status(401).json({ error: 'Invalid password' });
