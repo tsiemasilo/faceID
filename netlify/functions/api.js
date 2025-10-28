@@ -24,6 +24,22 @@ async function initializeDatabase() {
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_face_users_name ON face_users(name)
     `);
+    
+    const result = await pool.query(`
+      SELECT COUNT(*) as count FROM face_users 
+      WHERE jsonb_typeof(descriptor) != 'array'
+    `);
+    
+    if (parseInt(result.rows[0].count) > 0) {
+      console.log('Migrating single descriptors to arrays...');
+      await pool.query(`
+        UPDATE face_users 
+        SET descriptor = jsonb_build_array(descriptor),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE jsonb_typeof(descriptor) != 'array'
+      `);
+      console.log('Migration completed');
+    }
   } catch (error) {
     console.error('Database initialization error:', error);
   }
@@ -101,6 +117,86 @@ export async function handler(event, context) {
           name: result.rows[0].name,
           descriptor: result.rows[0].descriptor
         })
+      };
+    }
+
+    if (path === '/admin/users' && event.httpMethod === 'POST') {
+      const { password } = JSON.parse(event.body);
+      
+      const ADMIN_PASSWORD = process.env.CLEAR_USERS_PASSWORD;
+      
+      if (!ADMIN_PASSWORD || password !== ADMIN_PASSWORD) {
+        return {
+          statusCode: 401,
+          headers,
+          body: JSON.stringify({ error: 'Invalid password' })
+        };
+      }
+
+      const result = await pool.query(`
+        SELECT 
+          name, 
+          created_at,
+          jsonb_array_length(descriptor) as sample_count
+        FROM face_users 
+        ORDER BY created_at DESC
+      `);
+      
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify(result.rows)
+      };
+    }
+
+    if (path.startsWith('/users/') && event.httpMethod === 'PUT') {
+      const name = decodeURIComponent(path.replace('/users/', ''));
+      const { descriptor } = JSON.parse(event.body);
+      
+      if (!descriptor) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'Descriptor is required' })
+        };
+      }
+
+      const MAX_DESCRIPTORS = 25;
+      
+      const userResult = await pool.query(
+        'SELECT descriptor FROM face_users WHERE name = $1',
+        [name]
+      );
+      
+      if (userResult.rows.length === 0) {
+        return {
+          statusCode: 404,
+          headers,
+          body: JSON.stringify({ error: 'User not found' })
+        };
+      }
+      
+      let descriptors = userResult.rows[0].descriptor;
+      
+      if (!Array.isArray(descriptors)) {
+        descriptors = [descriptors];
+      }
+      
+      descriptors.push(descriptor);
+      
+      if (descriptors.length > MAX_DESCRIPTORS) {
+        descriptors = descriptors.slice(-MAX_DESCRIPTORS);
+      }
+      
+      await pool.query(
+        'UPDATE face_users SET descriptor = $1, updated_at = CURRENT_TIMESTAMP WHERE name = $2',
+        [JSON.stringify(descriptors), name]
+      );
+      
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ message: 'User updated successfully', descriptorCount: descriptors.length })
       };
     }
 

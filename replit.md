@@ -14,10 +14,16 @@ A React-based face recognition application that uses real-time camera face detec
 - **Icons**: Lucide React
 - **Face Recognition**: face-api.js (TensorFlow.js based)
 - **AI Models**: TinyFaceDetector, FaceLandmark68, FaceRecognition
+- **Backend**: Express.js with Node.js
+- **Database**: PostgreSQL (Netlify-hosted)
+- **API Architecture**: REST API with Netlify Functions for serverless deployment
 
 ### Project Structure
 ```
 /
+├── netlify/
+│   └── functions/
+│       └── api.js                 # Netlify serverless function for production API
 ├── public/
 │   └── models/                    # AI model weights for face detection
 ├── src/
@@ -29,8 +35,10 @@ A React-based face recognition application that uses real-time camera face detec
 │   ├── App.tsx                    # Main application component
 │   ├── main.tsx                   # React entry point
 │   └── index.css                  # Tailwind CSS + custom styles
+├── server.js                      # Express API server for development
 ├── index.html                     # HTML entry point
-├── vite.config.ts                 # Vite configuration (with path aliases)
+├── vite.config.ts                 # Vite configuration (with API proxy)
+├── netlify.toml                   # Netlify deployment configuration
 ├── tsconfig.json                  # TypeScript configuration
 ├── tailwind.config.js             # Tailwind CSS configuration
 └── package.json                   # Dependencies and scripts
@@ -76,10 +84,20 @@ A React-based face recognition application that uses real-time camera face detec
 - FaceMatcher with 0.6 threshold for accurate matching
 - Visual overlays hidden during scanning - only iOS-style frame and status shown
 
-### Storage
-- Face descriptors stored in localStorage as JSON
-- Camera permission status persisted
-- No backend required - fully client-side
+### Storage & Backend
+- **Database**: PostgreSQL database stores face descriptors and user names
+- **API Endpoints**:
+  - `GET /api/users` - Retrieve all registered users
+  - `POST /api/users` - Register a new user with face descriptor
+  - `DELETE /api/users` - Clear all users (password-protected)
+  - `GET /api/health` - API health check
+- **Development**: Express.js server on port 3001, proxied through Vite
+- **Production**: Netlify Functions for serverless deployment
+- **Security**: 
+  - Password stored securely in environment variables (CLEAR_USERS_PASSWORD)
+  - SSL certificate validation enabled in production
+  - Duplicate face detection prevents multiple registrations
+- **Camera permission**: Still stored in localStorage (device-specific setting)
 
 ### Camera Integration
 - MediaDevices API for camera access
@@ -92,28 +110,48 @@ A React-based face recognition application that uses real-time camera face detec
 - Dynamic capability detection and constraint application per device
 
 ## Development
-- Development server runs on port 5000
-- Vite dev server configured for Replit environment
+- **Frontend**: Vite dev server on port 5000
+- **Backend**: Express API server on port 3001
+- **API Proxy**: Vite proxies `/api/*` requests to backend server
+- **Required Environment Variables**:
+  - `NETLIFY_DATABASE_URL` - PostgreSQL connection string
+  - `CLEAR_USERS_PASSWORD` - Password for clearing all users
 - Hot module replacement enabled
 - Responsive design works on mobile and desktop
 
 ## Deployment
-- Build command: `npm run build`
-- Production server: Vite preview
-- Autoscale deployment target (stateless)
-- All models and assets served statically
+- **Platform**: Netlify (recommended) or any platform supporting static sites + serverless functions
+- **Build Command**: `npm run build`
+- **Publish Directory**: `dist`
+- **Functions**: Netlify Functions handle API requests in production
+- **Environment Variables Required**:
+  - `NETLIFY_DATABASE_URL` - PostgreSQL connection string
+  - `CLEAR_USERS_PASSWORD` - Password for clearing all users
+- **Database**: PostgreSQL (must support SSL connections)
+- All models and assets served statically from CDN
 
 ## Recent Changes
+
+- **2024-10-28**: PostgreSQL Database Integration & Backend API
+  - **BREAKING CHANGE**: Migrated from localStorage to PostgreSQL database for persistent storage
+  - Created Express.js REST API server with endpoints for user management
+  - Implemented Netlify Functions for production serverless deployment
+  - Added secure password protection using environment variables (CLEAR_USERS_PASSWORD)
+  - Configured SSL certificate validation for production database connections
+  - Updated Vite configuration with API proxy for development
+  - Face data now persists across devices and deployments
+  - Database schema includes indexed user table with JSONB descriptor storage
+  - Automatic database initialization on server startup
+  - Both Replit development and Netlify production environments supported
 
 - **2024-10-28**: Password-protected modal for clearing all faces
   - Replaced browser confirm with custom modal matching app's design aesthetic
   - Modal features gradient red/pink header with warning icon and smooth Framer Motion animations
-  - Password protection (0852Tsie) required to clear all registered faces
+  - Password protection stored securely in environment variable
   - Real-time password validation with error feedback
   - Modal can be closed via Cancel button, X button, or clicking outside
   - Enter key support for quick password submission
   - Shows count of faces to be deleted before action
-  - Note: Password is client-side only (visible in source code) but provides protection against accidental deletion
 
 - **2024-10-28**: Duplicate face prevention and data management features
   - Added duplicate face detection during registration to prevent same face registering multiple times

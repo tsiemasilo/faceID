@@ -1,16 +1,22 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as faceapi from 'face-api.js';
-import { Camera, User, UserPlus, Loader, RefreshCw, Check, Sparkles, Trash2, Lock, X, AlertTriangle } from 'lucide-react';
+import { Camera, User, UserPlus, Loader, RefreshCw, Check, Sparkles, Trash2, Lock, X, AlertTriangle, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface SavedUser {
   name: string;
-  descriptor: number[];
+  descriptor: number[] | number[][];
+}
+
+interface AdminUser {
+  name: string;
+  created_at: string;
+  sample_count: number;
 }
 
 export default function App() {
-  const [view, setView] = useState<'welcome' | 'name-input' | 'scanning' | 'success'>('welcome');
+  const [view, setView] = useState<'welcome' | 'name-input' | 'scanning' | 'success' | 'admin'>('welcome');
   const [isNewUser, setIsNewUser] = useState(false);
   const [userName, setUserName] = useState('');
   const [modelsLoaded, setModelsLoaded] = useState(false);
@@ -24,6 +30,11 @@ export default function App() {
   const [showClearModal, setShowClearModal] = useState(false);
   const [clearPassword, setClearPassword] = useState('');
   const [clearPasswordError, setClearPasswordError] = useState('');
+  const [showAdminPasswordModal, setShowAdminPasswordModal] = useState(false);
+  const [adminPassword, setAdminPassword] = useState('');
+  const [adminPasswordError, setAdminPasswordError] = useState('');
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
+  const [learningProgress, setLearningProgress] = useState(0);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -33,36 +44,46 @@ export default function App() {
   const isNewUserRef = useRef(false);
   const userNameRef = useRef('');
   const isFlippingCameraRef = useRef(false);
+  const learningStartTimeRef = useRef<number>(0);
+  const collectedDescriptorsRef = useRef<number[][]>([]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    const loadModels = async () => {
+      try {
+        console.log('🔄 Starting to load AI models...');
+        if (!cancelled) setMessage('Loading AI models...');
+        
+        await faceapi.tf.setBackend('cpu');
+        await faceapi.tf.ready();
+        
+        const MODEL_URL = '/models';
+        await Promise.all([
+          faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+          faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+          faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+        ]);
+        
+        console.log('✅ All models loaded successfully!');
+        if (!cancelled) {
+          setModelsLoaded(true);
+          setMessage('');
+        }
+      } catch (error) {
+        console.error('❌ Error loading models:', error);
+        if (!cancelled) setMessage('Error loading face detection models');
+      }
+    };
+
     loadModels();
     loadSavedUsers();
     checkCameraPermission();
-  }, []);
 
-  const loadModels = async () => {
-    try {
-      console.log('🔄 Starting to load AI models...');
-      setMessage('Loading AI models...');
-      
-      await faceapi.tf.setBackend('cpu');
-      await faceapi.tf.ready();
-      
-      const MODEL_URL = '/models';
-      await Promise.all([
-        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
-      ]);
-      
-      console.log('✅ All models loaded successfully!');
-      setModelsLoaded(true);
-      setMessage('');
-    } catch (error) {
-      console.error('❌ Error loading models:', error);
-      setMessage('Error loading face detection models');
-    }
-  };
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const loadSavedUsers = async () => {
     try {
@@ -102,6 +123,7 @@ export default function App() {
 
       if (response.ok) {
         setSavedUsers([]);
+        setAdminUsers([]);
         setMessage('All registered faces have been cleared');
         setTimeout(() => setMessage(''), 3000);
         closeClearModal();
@@ -113,6 +135,56 @@ export default function App() {
       console.error('Error clearing users:', error);
       setClearPasswordError('Failed to clear users. Please try again.');
     }
+  };
+
+  const openAdminPasswordModal = () => {
+    setShowAdminPasswordModal(true);
+    setAdminPassword('');
+    setAdminPasswordError('');
+  };
+
+  const closeAdminPasswordModal = () => {
+    setShowAdminPasswordModal(false);
+    setAdminPassword('');
+    setAdminPasswordError('');
+  };
+
+  const loadAdminUsers = async (password: string) => {
+    try {
+      const response = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ password }),
+      });
+      if (response.ok) {
+        const users = await response.json();
+        setAdminUsers(users);
+        return true;
+      } else {
+        const data = await response.json();
+        setAdminPasswordError(data.error || 'Invalid password');
+        return false;
+      }
+    } catch (error) {
+      console.error('Error loading admin users:', error);
+      setAdminPasswordError('Failed to load users');
+      return false;
+    }
+  };
+
+  const handleAdminAccess = async () => {
+    const success = await loadAdminUsers(adminPassword);
+    if (success) {
+      closeAdminPasswordModal();
+      setView('admin');
+    }
+  };
+
+  const handleBackFromAdmin = () => {
+    setView('welcome');
+    setAdminUsers([]);
   };
 
   const checkCameraPermission = () => {
@@ -387,43 +459,82 @@ export default function App() {
       return;
     }
 
-    // Check if face already exists
-    if (savedUsers.length > 0) {
-      const labeledDescriptors = savedUsers.map(user => 
-        new faceapi.LabeledFaceDescriptors(
-          user.name,
-          [new Float32Array(user.descriptor)]
-        )
-      );
+    const currentTime = Date.now();
+    
+    if (learningStartTimeRef.current === 0) {
+      learningStartTimeRef.current = currentTime;
+      collectedDescriptorsRef.current = [];
+      setLearningProgress(0);
+      
+      if (savedUsers.length > 0) {
+        const allDescriptors: Float32Array[] = [];
+        savedUsers.forEach(user => {
+          const descriptors = Array.isArray(user.descriptor[0]) 
+            ? (user.descriptor as number[][]).map(d => new Float32Array(d))
+            : [new Float32Array(user.descriptor as number[])];
+          allDescriptors.push(...descriptors);
+        });
 
-      const faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.6);
-      const match = faceMatcher.findBestMatch(detection.descriptor);
+        const labeledDescriptors = savedUsers.map(user => {
+          const descriptors = Array.isArray(user.descriptor[0]) 
+            ? (user.descriptor as number[][]).map(d => new Float32Array(d))
+            : [new Float32Array(user.descriptor as number[])];
+          return new faceapi.LabeledFaceDescriptors(user.name, descriptors);
+        });
 
-      if (match.label !== 'unknown') {
-        isScanningRef.current = false;
-        setIsScanning(false);
-        stopCamera();
-        setMessage(`This face is already registered as "${match.label}". Please use a different face.`);
-        setTimeout(() => {
-          setView('welcome');
-          setUserName('');
-          setMessage('');
-          isNewUserRef.current = false;
-          userNameRef.current = '';
-        }, 4000);
-        return;
+        const faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.6);
+        const match = faceMatcher.findBestMatch(detection.descriptor);
+
+        if (match.label !== 'unknown') {
+          isScanningRef.current = false;
+          setIsScanning(false);
+          stopCamera();
+          learningStartTimeRef.current = 0;
+          collectedDescriptorsRef.current = [];
+          setLearningProgress(0);
+          setMessage(`This face is already registered as "${match.label}". Please use a different face.`);
+          setTimeout(() => {
+            setView('welcome');
+            setUserName('');
+            setMessage('');
+            isNewUserRef.current = false;
+            userNameRef.current = '';
+          }, 4000);
+          return;
+        }
       }
     }
 
+    const elapsedSeconds = Math.floor((currentTime - learningStartTimeRef.current) / 1000);
+    const MIN_LEARNING_SECONDS = 5;
+    
+    if (elapsedSeconds < MIN_LEARNING_SECONDS) {
+      if (frameCountRef.current % 10 === 0) {
+        const descriptor = Array.from(detection.descriptor) as number[];
+        collectedDescriptorsRef.current.push(descriptor);
+      }
+      
+      setLearningProgress(elapsedSeconds);
+      setDetectionStatus(`Learning your face... ${elapsedSeconds}/${MIN_LEARNING_SECONDS} seconds`);
+      return;
+    }
+
+    const descriptor = Array.from(detection.descriptor) as number[];
+    collectedDescriptorsRef.current.push(descriptor);
+
     isScanningRef.current = false;
     setIsScanning(false);
-    setDetectionStatus('Face captured!');
+    setDetectionStatus('Face learning complete!');
+    setLearningProgress(MIN_LEARNING_SECONDS);
 
     try {
-      const descriptor = Array.from(detection.descriptor) as number[];
+      const descriptors = collectedDescriptorsRef.current.length > 0 
+        ? collectedDescriptorsRef.current 
+        : [descriptor];
+
       const newUser: SavedUser = {
         name: currentUserName,
-        descriptor: descriptor
+        descriptor: descriptors
       };
 
       const response = await fetch('/api/users', {
@@ -442,6 +553,10 @@ export default function App() {
       const updatedUsers = [...savedUsers, newUser];
       setSavedUsers(updatedUsers);
 
+      learningStartTimeRef.current = 0;
+      collectedDescriptorsRef.current = [];
+      setLearningProgress(0);
+
       stopCamera();
       setRecognizedUser(currentUserName);
       setView('success');
@@ -457,6 +572,9 @@ export default function App() {
     } catch (error) {
       console.error('❌ Error during registration:', error);
       setMessage('Error saving face data. Please try again.');
+      learningStartTimeRef.current = 0;
+      collectedDescriptorsRef.current = [];
+      setLearningProgress(0);
       isScanningRef.current = true;
       setIsScanning(true);
       
@@ -466,7 +584,7 @@ export default function App() {
     }
   };
 
-  const handleExistingUserRecognition = (
+  const handleExistingUserRecognition = async (
     detection: faceapi.WithFaceDescriptor<faceapi.WithFaceLandmarks<{ detection: faceapi.FaceDetection }>>,
     _resizedDetection: any
   ) => {
@@ -475,12 +593,12 @@ export default function App() {
       return;
     }
 
-    const labeledDescriptors = savedUsers.map(user => 
-      new faceapi.LabeledFaceDescriptors(
-        user.name,
-        [new Float32Array(user.descriptor)]
-      )
-    );
+    const labeledDescriptors = savedUsers.map(user => {
+      const descriptors = Array.isArray(user.descriptor[0]) 
+        ? (user.descriptor as number[][]).map(d => new Float32Array(d))
+        : [new Float32Array(user.descriptor as number[])];
+      return new faceapi.LabeledFaceDescriptors(user.name, descriptors);
+    });
 
     const faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.6);
     const match = faceMatcher.findBestMatch(detection.descriptor);
@@ -490,6 +608,34 @@ export default function App() {
       setIsScanning(false);
       setDetectionStatus(`Recognized: ${match.label}`);
       setRecognizedUser(match.label);
+      
+      const newDescriptor = Array.from(detection.descriptor) as number[];
+      
+      try {
+        await fetch(`/api/users/${encodeURIComponent(match.label)}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ descriptor: newDescriptor }),
+        });
+        
+        const updatedUsers = savedUsers.map(user => {
+          if (user.name === match.label) {
+            const currentDescriptors = Array.isArray(user.descriptor[0])
+              ? (user.descriptor as number[][])
+              : [user.descriptor as number[]];
+            return {
+              ...user,
+              descriptor: [...currentDescriptors, newDescriptor]
+            };
+          }
+          return user;
+        });
+        setSavedUsers(updatedUsers);
+      } catch (error) {
+        console.error('Error updating user descriptors:', error);
+      }
       
       stopCamera();
       setView('success');
@@ -675,9 +821,9 @@ export default function App() {
   };
 
   const pageVariants = {
-    initial: { opacity: 0, scale: 0.95 },
+    initial: { opacity: 0, scale: 0.98 },
     animate: { opacity: 1, scale: 1 },
-    exit: { opacity: 0, scale: 0.95 }
+    exit: { opacity: 0, scale: 0.98 }
   };
 
   return (
@@ -696,16 +842,15 @@ export default function App() {
           <p className="text-sm text-gray-600 mt-1">Advanced biometric authentication</p>
         </motion.div>
 
-        <AnimatePresence mode="wait">
-          {/* Loading State */}
-          {!modelsLoaded && (
+        <AnimatePresence>
+          {!modelsLoaded ? (
             <motion.div
               key="loading"
               variants={pageVariants}
               initial="initial"
               animate="animate"
               exit="exit"
-              transition={{ duration: 0.3 }}
+              transition={{ duration: 0.2 }}
               className="flex-1 flex items-center justify-center p-6"
             >
               <div className="text-center">
@@ -718,10 +863,7 @@ export default function App() {
                 <p className="text-gray-700 font-medium">{message || 'Initializing...'}</p>
               </div>
             </motion.div>
-          )}
-
-          {/* Welcome Screen */}
-          {modelsLoaded && view === 'welcome' && (
+          ) : view === 'welcome' ? (
             <motion.div
               key="welcome"
               variants={pageVariants}
@@ -740,21 +882,12 @@ export default function App() {
                 <Camera className="w-16 h-16 text-white" />
               </motion.div>
               
-              <motion.div
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.2 }}
-              >
+              <div>
                 <h2 className="text-3xl font-bold text-gray-800 text-center">Welcome</h2>
                 <p className="text-gray-600 text-center mt-2">Choose an option to continue</p>
-              </motion.div>
+              </div>
 
-              <motion.div 
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.3 }}
-                className="w-full space-y-4 mt-8"
-              >
+              <div className="w-full space-y-4 mt-8">
                 <Button
                   onClick={handleNewUserFlow}
                   variant="default"
@@ -774,35 +907,28 @@ export default function App() {
                   <User className="w-6 h-6" />
                   Existing User Login
                 </Button>
-              </motion.div>
+              </div>
 
-              <motion.div 
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.4 }}
-                className="mt-8 text-center space-y-3"
-              >
+              <div className="mt-8 text-center space-y-3">
                 {savedUsers.length > 0 ? (
-                  <>
-                    <p className="text-sm text-gray-500">
-                      {savedUsers.length} registered user{savedUsers.length !== 1 ? 's' : ''}
-                    </p>
-                    <Button
-                      onClick={openClearModal}
-                      variant="outline"
-                      size="sm"
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Clear All Faces
-                    </Button>
-                  </>
+                  <p className="text-sm text-gray-500">
+                    {savedUsers.length} registered user{savedUsers.length !== 1 ? 's' : ''}
+                  </p>
                 ) : (
                   <div className="text-sm text-amber-600 bg-amber-50 px-4 py-3 rounded-xl border border-amber-200 shadow-sm">
                     No registered users yet. Start by registering!
                   </div>
                 )}
-              </motion.div>
+                <Button
+                  onClick={openAdminPasswordModal}
+                  variant="outline"
+                  size="sm"
+                  className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 border-indigo-200"
+                >
+                  <Shield className="w-4 h-4 mr-2" />
+                  Admin Panel
+                </Button>
+              </div>
               
               {message && (
                 <motion.div
@@ -814,10 +940,7 @@ export default function App() {
                 </motion.div>
               )}
             </motion.div>
-          )}
-
-          {/* Name Input Screen */}
-          {view === 'name-input' && (
+          ) : view === 'name-input' ? (
             <motion.div
               key="name-input"
               variants={pageVariants}
@@ -892,10 +1015,7 @@ export default function App() {
                 </motion.div>
               </div>
             </motion.div>
-          )}
-
-          {/* Scanning Screen */}
-          {view === 'scanning' && (
+          ) : view === 'scanning' ? (
             <motion.div
               key="scanning"
               variants={pageVariants}
@@ -1049,6 +1169,16 @@ export default function App() {
                       <div className="bg-black/70 backdrop-blur-md text-white text-sm px-5 py-2 rounded-full shadow-lg">
                         {detectionStatus}
                       </div>
+                      {isNewUser && learningProgress > 0 && learningProgress < 5 && (
+                        <div className="mt-2 w-48 bg-gray-700/80 rounded-full h-2 overflow-hidden">
+                          <motion.div
+                            className="h-full bg-gradient-to-r from-indigo-500 to-purple-500"
+                            initial={{ width: 0 }}
+                            animate={{ width: `${(learningProgress / 5) * 100}%` }}
+                            transition={{ duration: 0.3 }}
+                          />
+                        </div>
+                      )}
                     </motion.div>
                   )}
 
@@ -1090,10 +1220,7 @@ export default function App() {
                 </Button>
               </motion.div>
             </motion.div>
-          )}
-
-          {/* Success Screen */}
-          {view === 'success' && (
+          ) : view === 'success' ? (
             <motion.div
               key="success"
               variants={pageVariants}
@@ -1140,7 +1267,121 @@ export default function App() {
                 <Sparkles className="w-16 h-16 text-yellow-400" />
               </motion.div>
             </motion.div>
-          )}
+          ) : view === 'admin' ? (
+            <motion.div
+              key="admin"
+              variants={pageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={{ duration: 0.3 }}
+              className="flex-1 flex flex-col p-6"
+            >
+              <motion.div 
+                initial={{ y: -10, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                className="mb-6"
+              >
+                <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                  <Shield className="w-7 h-7 text-indigo-600" />
+                  Admin Panel
+                </h2>
+                <p className="text-gray-600 text-sm mt-1">Manage registered users</p>
+              </motion.div>
+
+              <motion.div
+                initial={{ y: 10, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.1 }}
+                className="flex-1 overflow-auto"
+              >
+                <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
+                  <table className="w-full">
+                    <thead className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-sm font-semibold">Name</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold">Registration Date</th>
+                        <th className="px-4 py-3 text-center text-sm font-semibold">Face Samples</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {adminUsers.length > 0 ? (
+                        adminUsers.map((user, index) => (
+                          <motion.tr
+                            key={user.name}
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: index * 0.05 }}
+                            className="hover:bg-gray-50 transition-colors"
+                          >
+                            <td className="px-4 py-3 text-sm font-medium text-gray-900">{user.name}</td>
+                            <td className="px-4 py-3 text-sm text-gray-600">
+                              {new Date(user.created_at).toLocaleDateString('en-US', { 
+                                year: 'numeric', 
+                                month: 'short', 
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-center">
+                              <span className="inline-flex items-center px-3 py-1 rounded-full bg-indigo-100 text-indigo-700 font-semibold">
+                                {user.sample_count}
+                              </span>
+                            </td>
+                          </motion.tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={3} className="px-4 py-8 text-center text-gray-500">
+                            No registered users found
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </motion.div>
+
+              {message && (
+                <motion.div
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="mt-4 p-3 bg-green-50 border border-green-200 rounded-xl text-green-700 text-center text-sm"
+                >
+                  {message}
+                </motion.div>
+              )}
+
+              <motion.div
+                initial={{ y: 10, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.2 }}
+                className="space-y-3 mt-6"
+              >
+                {adminUsers.length > 0 && (
+                  <Button
+                    onClick={openClearModal}
+                    variant="outline"
+                    size="lg"
+                    className="w-full text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                  >
+                    <Trash2 className="w-5 h-5 mr-2" />
+                    Clear All Faces
+                  </Button>
+                )}
+                
+                <Button
+                  onClick={handleBackFromAdmin}
+                  variant="default"
+                  size="lg"
+                  className="w-full"
+                >
+                  Back to Home
+                </Button>
+              </motion.div>
+            </motion.div>
+          ) : null}
         </AnimatePresence>
 
         {/* Clear All Faces Modal */}
@@ -1234,6 +1475,94 @@ export default function App() {
                   >
                     <Trash2 className="w-4 h-4 mr-2" />
                     Clear All
+                  </Button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Admin Password Modal */}
+        <AnimatePresence>
+          {showAdminPasswordModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+              onClick={closeAdminPasswordModal}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                transition={{ type: "spring", duration: 0.3 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+              >
+                <div className="bg-gradient-to-r from-indigo-500 to-purple-500 p-6 relative">
+                  <button
+                    onClick={closeAdminPasswordModal}
+                    className="absolute top-4 right-4 text-white/80 hover:text-white transition-colors"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
+                      <Shield className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-white">Admin Access</h3>
+                      <p className="text-indigo-50 text-sm">Enter password to continue</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-6 space-y-4">
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                      <Lock className="w-4 h-4" />
+                      Admin Password
+                    </label>
+                    <input
+                      type="password"
+                      value={adminPassword}
+                      onChange={(e) => {
+                        setAdminPassword(e.target.value);
+                        setAdminPasswordError('');
+                      }}
+                      onKeyPress={(e) => e.key === 'Enter' && handleAdminAccess()}
+                      placeholder="Enter admin password"
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 focus:outline-none transition-all"
+                      autoFocus
+                    />
+                    {adminPasswordError && (
+                      <motion.p
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="text-red-600 text-sm flex items-center gap-1"
+                      >
+                        <AlertTriangle className="w-4 h-4" />
+                        {adminPasswordError}
+                      </motion.p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 p-6 flex gap-3">
+                  <Button
+                    onClick={closeAdminPasswordModal}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleAdminAccess}
+                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white"
+                  >
+                    <Shield className="w-4 h-4 mr-2" />
+                    Access Admin
                   </Button>
                 </div>
               </motion.div>
