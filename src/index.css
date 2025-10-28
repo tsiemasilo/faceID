@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
 body {
   margin: 0;
   padding: 0;
@@ -17,65 +27,32 @@ code {
     monospace;
 }
 
-/* Futuristic face scanning animation */
-@keyframes scan {
-  0% {
-    top: -8%;
-    opacity: 0;
-    transform: scaleY(0.5);
-  }
-  3% {
-    opacity: 0.3;
-  }
-  8% {
-    opacity: 1;
-    transform: scaleY(1);
-  }
-  15% {
-    opacity: 1;
-  }
-  85% {
-    opacity: 1;
-  }
-  92% {
-    opacity: 1;
-    transform: scaleY(1);
-  }
-  97% {
-    opacity: 0.3;
-  }
-  100% {
-    top: 108%;
-    opacity: 0;
-    transform: scaleY(0.5);
-  }
+/* Smooth transitions for all interactive elements */
+button, input, a {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-@keyframes pulse-ring {
-  0%, 100% {
-    opacity: 0.4;
-    transform: scale(1);
-    box-shadow: inset 0 0 20px rgba(99, 102, 241, 0.2);
-  }
-  50% {
-    opacity: 0.8;
-    transform: scale(1.01);
-    box-shadow: inset 0 0 30px rgba(99, 102, 241, 0.4);
-  }
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
 }
 
-.scanning-beam {
-  will-change: top, opacity, transform;
-  pointer-events: none;
-  transition: all 0.1s ease-out;
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-/* Additional futuristic effects */
-@keyframes shimmer {
-  0%, 100% {
-    opacity: 0.3;
-  }
-  50% {
-    opacity: 1;
-  }
+::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.5);
+}
+
+/* Smooth focus rings */
+*:focus-visible {
+  outline: 2px solid rgba(99, 102, 241, 0.5);
+  outline-offset: 2px;
+  border-radius: 8px;
 }
