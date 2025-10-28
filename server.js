@@ -92,7 +92,12 @@ app.delete('/api/users', async (req, res) => {
   try {
     const { password } = req.body;
     
-    const CLEAR_PASSWORD = process.env.CLEAR_USERS_PASSWORD || '0852Tsie';
+    const CLEAR_PASSWORD = process.env.CLEAR_USERS_PASSWORD;
+    
+    if (!CLEAR_PASSWORD) {
+      console.error('CLEAR_USERS_PASSWORD environment variable is not set');
+      return res.status(500).json({ error: 'Server configuration error' });
+    }
     
     if (password !== CLEAR_PASSWORD) {
       return res.status(401).json({ error: 'Invalid password' });
