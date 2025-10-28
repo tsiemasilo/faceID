@@ -105,6 +105,14 @@ A React-based face recognition application that uses real-time camera face detec
 
 ## Recent Changes
 
+- **2024-10-28**: Duplicate face prevention and data management features
+  - Added duplicate face detection during registration to prevent same face registering multiple times
+  - System now checks if a face already exists using FaceMatcher with 0.6 threshold before allowing registration
+  - If duplicate detected, shows clear error message indicating which name the face is already registered under
+  - Added "Clear All Faces" button to welcome screen for easy data management
+  - Clear function includes confirmation dialog to prevent accidental data loss
+  - Fixed Netlify deployment TypeScript error (unused variable in handleExistingUserRecognition)
+
 - **2024-10-28**: Comprehensive UI/UX overhaul with Framer Motion animations
   - Integrated Framer Motion for smooth page transitions across all views
   - Fixed glitchy scanning animation with proper easing and keyframe sequences
