@@ -64,10 +64,17 @@ export default function App() {
     }
   };
 
-  const loadSavedUsers = () => {
-    const saved = localStorage.getItem('faceIdUsers');
-    if (saved) {
-      setSavedUsers(JSON.parse(saved));
+  const loadSavedUsers = async () => {
+    try {
+      const response = await fetch('/api/users');
+      if (response.ok) {
+        const users = await response.json();
+        setSavedUsers(users);
+      } else {
+        console.error('Failed to load users from database');
+      }
+    } catch (error) {
+      console.error('Error loading users:', error);
     }
   };
 
@@ -83,17 +90,28 @@ export default function App() {
     setClearPasswordError('');
   };
 
-  const handleClearAllUsers = () => {
-    const CLEAR_PASSWORD = '0852Tsie';
-    
-    if (clearPassword === CLEAR_PASSWORD) {
-      localStorage.removeItem('faceIdUsers');
-      setSavedUsers([]);
-      setMessage('All registered faces have been cleared');
-      setTimeout(() => setMessage(''), 3000);
-      closeClearModal();
-    } else {
-      setClearPasswordError('Incorrect password. Please try again.');
+  const handleClearAllUsers = async () => {
+    try {
+      const response = await fetch('/api/users', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ password: clearPassword }),
+      });
+
+      if (response.ok) {
+        setSavedUsers([]);
+        setMessage('All registered faces have been cleared');
+        setTimeout(() => setMessage(''), 3000);
+        closeClearModal();
+      } else {
+        const data = await response.json();
+        setClearPasswordError(data.error || 'Incorrect password. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error clearing users:', error);
+      setClearPasswordError('Failed to clear users. Please try again.');
     }
   };
 
@@ -408,9 +426,21 @@ export default function App() {
         descriptor: descriptor
       };
 
+      const response = await fetch('/api/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newUser),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to save user');
+      }
+
       const updatedUsers = [...savedUsers, newUser];
       setSavedUsers(updatedUsers);
-      localStorage.setItem('faceIdUsers', JSON.stringify(updatedUsers));
 
       stopCamera();
       setRecognizedUser(currentUserName);
