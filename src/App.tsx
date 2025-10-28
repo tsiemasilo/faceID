@@ -381,7 +381,7 @@ export default function App() {
 
   const handleExistingUserRecognition = (
     detection: faceapi.WithFaceDescriptor<faceapi.WithFaceLandmarks<{ detection: faceapi.FaceDetection }>>,
-    resizedDetection: any
+    _resizedDetection: any
   ) => {
     if (savedUsers.length === 0) {
       setMessage('No registered users found');

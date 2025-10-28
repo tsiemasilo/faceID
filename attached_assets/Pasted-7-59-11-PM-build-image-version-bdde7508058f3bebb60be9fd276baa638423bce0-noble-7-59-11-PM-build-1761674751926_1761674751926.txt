@@ -1,0 +1,103 @@
+7:59:11 PM: build-image version: bdde7508058f3bebb60be9fd276baa638423bce0 (noble)
+7:59:11 PM: buildbot version: 6e7a6a2557e0a0eca440918037550266ac08c7be
+7:59:11 PM: Fetching cached dependencies
+7:59:11 PM: Starting to download cache of 396.9MB (Last modified: 2025-10-24 14:23:54 +0000 UTC)
+7:59:12 PM: Finished downloading cache in 1.086s
+7:59:12 PM: Starting to extract cache
+7:59:19 PM: Finished extracting cache in 6.951s
+7:59:19 PM: Finished fetching cache in 8.11s
+7:59:19 PM: Starting to prepare the repo for build
+7:59:19 PM: Preparing Git Reference refs/heads/main
+7:59:21 PM: Custom publish path detected. Proceeding with the specified path: 'dist'
+7:59:21 PM: Custom build command detected. Proceeding with the specified command: 'npm run build'
+7:59:22 PM: Starting to install dependencies
+7:59:22 PM: Started restoring cached python cache
+7:59:22 PM: Finished restoring cached python cache
+7:59:22 PM: Started restoring cached ruby cache
+7:59:23 PM: Finished restoring cached ruby cache
+7:59:23 PM: Started restoring cached go cache
+7:59:24 PM: Finished restoring cached go cache
+7:59:24 PM: Started restoring cached Node.js version
+7:59:42 PM: Finished restoring cached Node.js version
+7:59:43 PM: v22.21.0 is already installed.
+7:59:44 PM: Now using node v22.21.0 (npm v10.9.4)
+7:59:44 PM: Enabling Node.js Corepack
+7:59:45 PM: Started restoring cached build plugins
+7:59:45 PM: Finished restoring cached build plugins
+7:59:45 PM: Started restoring cached corepack dependencies
+7:59:45 PM: Finished restoring cached corepack dependencies
+7:59:45 PM: No npm workspaces detected
+7:59:45 PM: Started restoring cached node modules
+7:59:45 PM: Finished restoring cached node modules
+7:59:45 PM: Installing npm packages using npm version 10.9.4
+7:59:47 PM: added 11 packages in 2s
+7:59:47 PM: npm packages installed
+7:59:47 PM: Successfully installed dependencies
+7:59:47 PM: Starting build script
+7:59:48 PM: Detected 1 framework(s)
+7:59:48 PM: "vite" at version "4.5.14"
+7:59:48 PM: Section completed: initializing
+7:59:49 PM: ​
+7:59:49 PM: Netlify Build                                                 
+7:59:49 PM: ────────────────────────────────────────────────────────────────
+7:59:49 PM: ​
+7:59:49 PM: ❯ Version
+7:59:49 PM:   @netlify/build 35.2.8
+7:59:49 PM: ​
+7:59:49 PM: ❯ Flags
+7:59:49 PM:   accountId: 6786aa5b927658b4b62b93d6
+7:59:49 PM:   baseRelDir: true
+7:59:49 PM:   buildId: 6901046ef3f74c0008f5177a
+7:59:49 PM:   deployId: 6901046ef3f74c0008f5177c
+7:59:49 PM: ​
+7:59:49 PM: ❯ Current directory
+7:59:49 PM:   /opt/build/repo
+7:59:49 PM: ​
+7:59:49 PM: ❯ Config file
+7:59:49 PM:   /opt/build/repo/netlify.toml
+7:59:49 PM: ​
+7:59:49 PM: ❯ Context
+7:59:49 PM:   production
+7:59:49 PM: ​
+7:59:49 PM: ❯ Installing extensions
+7:59:49 PM:    - neon
+7:59:51 PM: ​
+7:59:51 PM: ❯ Loading extensions
+7:59:51 PM:    - neon
+7:59:52 PM: ​
+7:59:52 PM: build.command from netlify.toml                               
+7:59:52 PM: ────────────────────────────────────────────────────────────────
+7:59:52 PM: ​
+7:59:52 PM: $ npm run build
+7:59:52 PM: > biometric-attendance@0.0.0 build
+7:59:52 PM: > tsc && vite build
+7:59:53 PM: src/App.tsx(384,5): error TS6133: 'resizedDetection' is declared but its value is never read.
+7:59:54 PM: Failed during stage 'building site': Build script returned non-zero exit code: 2 (https://ntl.fyi/exit-code-2)
+7:59:54 PM: ​
+7:59:54 PM: "build.command" failed                                        
+7:59:54 PM: ────────────────────────────────────────────────────────────────
+7:59:54 PM: ​
+7:59:54 PM:   Error message
+7:59:54 PM:   Command failed with exit code 2: npm run build (https://ntl.fyi/exit-code-2)
+7:59:54 PM: ​
+7:59:54 PM:   Error location
+7:59:54 PM:   In build.command from netlify.toml:
+7:59:54 PM:   npm run build
+7:59:54 PM: ​
+7:59:54 PM:   Resolved config
+7:59:54 PM:   build:
+7:59:54 PM:     command: npm run build
+7:59:54 PM:     commandOrigin: config
+7:59:54 PM:     environment:
+7:59:54 PM:       - NETLIFY_DATABASE_URL
+7:59:54 PM:       - NETLIFY_DATABASE_URL_UNPOOLED
+7:59:54 PM:     publish: /opt/build/repo/dist
+7:59:54 PM:     publishOrigin: config
+7:59:54 PM:   redirects:
+7:59:54 PM:     - from: /*
+      status: 200
+      to: /index.html
+  redirectsOrigin: config
+7:59:54 PM: Build failed due to a user error: Build script returned non-zero exit code: 2
+7:59:54 PM: Failing build: Failed to build site
+7:59:55 PM: Finished processing build request in 43.539s
