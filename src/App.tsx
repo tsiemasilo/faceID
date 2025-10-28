@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as faceapi from 'face-api.js';
-import { Camera, User, UserPlus, Loader, RefreshCw, Check, Sparkles, Trash2 } from 'lucide-react';
+import { Camera, User, UserPlus, Loader, RefreshCw, Check, Sparkles, Trash2, Lock, X, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface SavedUser {
@@ -21,6 +21,9 @@ export default function App() {
   const [savedUsers, setSavedUsers] = useState<SavedUser[]>([]);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const [detectionStatus, setDetectionStatus] = useState('Initializing...');
+  const [showClearModal, setShowClearModal] = useState(false);
+  const [clearPassword, setClearPassword] = useState('');
+  const [clearPasswordError, setClearPasswordError] = useState('');
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -68,12 +71,29 @@ export default function App() {
     }
   };
 
-  const clearAllUsers = () => {
-    if (window.confirm('Are you sure you want to clear all registered faces? This action cannot be undone.')) {
+  const openClearModal = () => {
+    setShowClearModal(true);
+    setClearPassword('');
+    setClearPasswordError('');
+  };
+
+  const closeClearModal = () => {
+    setShowClearModal(false);
+    setClearPassword('');
+    setClearPasswordError('');
+  };
+
+  const handleClearAllUsers = () => {
+    const CLEAR_PASSWORD = '0852Tsie';
+    
+    if (clearPassword === CLEAR_PASSWORD) {
       localStorage.removeItem('faceIdUsers');
       setSavedUsers([]);
       setMessage('All registered faces have been cleared');
       setTimeout(() => setMessage(''), 3000);
+      closeClearModal();
+    } else {
+      setClearPasswordError('Incorrect password. Please try again.');
     }
   };
 
@@ -738,7 +758,7 @@ export default function App() {
                       {savedUsers.length} registered user{savedUsers.length !== 1 ? 's' : ''}
                     </p>
                     <Button
-                      onClick={clearAllUsers}
+                      onClick={openClearModal}
                       variant="outline"
                       size="sm"
                       className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
@@ -1088,6 +1108,104 @@ export default function App() {
                 className="mt-8"
               >
                 <Sparkles className="w-16 h-16 text-yellow-400" />
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Clear All Faces Modal */}
+        <AnimatePresence>
+          {showClearModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+              onClick={closeClearModal}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                transition={{ type: "spring", duration: 0.3 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+              >
+                {/* Modal Header */}
+                <div className="bg-gradient-to-r from-red-500 to-pink-500 p-6 relative">
+                  <button
+                    onClick={closeClearModal}
+                    className="absolute top-4 right-4 text-white/80 hover:text-white transition-colors"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
+                      <AlertTriangle className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-white">Clear All Faces</h3>
+                      <p className="text-red-50 text-sm">This action cannot be undone</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Modal Body */}
+                <div className="p-6 space-y-4">
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                    <p className="text-amber-800 text-sm">
+                      You are about to delete all {savedUsers.length} registered face{savedUsers.length !== 1 ? 's' : ''}. 
+                      Please enter the password to confirm.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                      <Lock className="w-4 h-4" />
+                      Password
+                    </label>
+                    <input
+                      type="password"
+                      value={clearPassword}
+                      onChange={(e) => {
+                        setClearPassword(e.target.value);
+                        setClearPasswordError('');
+                      }}
+                      onKeyPress={(e) => e.key === 'Enter' && handleClearAllUsers()}
+                      placeholder="Enter password"
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-red-500 focus:ring-4 focus:ring-red-100 focus:outline-none transition-all"
+                      autoFocus
+                    />
+                    {clearPasswordError && (
+                      <motion.p
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="text-red-600 text-sm flex items-center gap-1"
+                      >
+                        <AlertTriangle className="w-4 h-4" />
+                        {clearPasswordError}
+                      </motion.p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Modal Footer */}
+                <div className="bg-gray-50 p-6 flex gap-3">
+                  <Button
+                    onClick={closeClearModal}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleClearAllUsers}
+                    className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Clear All
+                  </Button>
+                </div>
               </motion.div>
             </motion.div>
           )}
