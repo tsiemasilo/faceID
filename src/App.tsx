@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as faceapi from 'face-api.js';
-import { Camera, User, UserPlus, Loader, RefreshCw, Check, Sparkles } from 'lucide-react';
+import { Camera, User, UserPlus, Loader, RefreshCw, Check, Sparkles, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface SavedUser {
@@ -65,6 +65,15 @@ export default function App() {
     const saved = localStorage.getItem('faceIdUsers');
     if (saved) {
       setSavedUsers(JSON.parse(saved));
+    }
+  };
+
+  const clearAllUsers = () => {
+    if (window.confirm('Are you sure you want to clear all registered faces? This action cannot be undone.')) {
+      localStorage.removeItem('faceIdUsers');
+      setSavedUsers([]);
+      setMessage('All registered faces have been cleared');
+      setTimeout(() => setMessage(''), 3000);
     }
   };
 
@@ -338,6 +347,34 @@ export default function App() {
     if (!detection || !detection.descriptor) {
       setMessage('Error: Could not capture face data. Please try again.');
       return;
+    }
+
+    // Check if face already exists
+    if (savedUsers.length > 0) {
+      const labeledDescriptors = savedUsers.map(user => 
+        new faceapi.LabeledFaceDescriptors(
+          user.name,
+          [new Float32Array(user.descriptor)]
+        )
+      );
+
+      const faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.6);
+      const match = faceMatcher.findBestMatch(detection.descriptor);
+
+      if (match.label !== 'unknown') {
+        isScanningRef.current = false;
+        setIsScanning(false);
+        stopCamera();
+        setMessage(`This face is already registered as "${match.label}". Please use a different face.`);
+        setTimeout(() => {
+          setView('welcome');
+          setUserName('');
+          setMessage('');
+          isNewUserRef.current = false;
+          userNameRef.current = '';
+        }, 4000);
+        return;
+      }
     }
 
     isScanningRef.current = false;
@@ -693,12 +730,23 @@ export default function App() {
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ delay: 0.4 }}
-                className="mt-8 text-center"
+                className="mt-8 text-center space-y-3"
               >
                 {savedUsers.length > 0 ? (
-                  <p className="text-sm text-gray-500">
-                    {savedUsers.length} registered user{savedUsers.length !== 1 ? 's' : ''}
-                  </p>
+                  <>
+                    <p className="text-sm text-gray-500">
+                      {savedUsers.length} registered user{savedUsers.length !== 1 ? 's' : ''}
+                    </p>
+                    <Button
+                      onClick={clearAllUsers}
+                      variant="outline"
+                      size="sm"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Clear All Faces
+                    </Button>
+                  </>
                 ) : (
                   <div className="text-sm text-amber-600 bg-amber-50 px-4 py-3 rounded-xl border border-amber-200 shadow-sm">
                     No registered users yet. Start by registering!
