@@ -934,54 +934,102 @@ export default function App() {
                   className="absolute top-0 left-0 w-full h-full"
                 />
                 
-                {/* Face guide overlay - oval shape */}
+                {/* Face guide overlay - futuristic oval shape */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                   <div className="relative" style={{ width: '280px', height: '380px' }}>
-                    {/* Main oval guide */}
+                    {/* Main oval guide with glow */}
                     <div 
-                      className="absolute inset-0 border-4 border-white/70"
+                      className="absolute inset-0 border-4"
                       style={{ 
                         borderRadius: '50%',
-                        boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.6), 0 0 20px rgba(255, 255, 255, 0.3)'
+                        borderImage: 'linear-gradient(180deg, rgba(139, 92, 246, 0.8), rgba(99, 102, 241, 0.9), rgba(59, 130, 246, 0.8)) 1',
+                        borderColor: 'transparent',
+                        borderStyle: 'solid',
+                        boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.65), inset 0 0 30px rgba(99, 102, 241, 0.15), 0 0 40px rgba(99, 102, 241, 0.2)',
+                        filter: 'drop-shadow(0 0 10px rgba(99, 102, 241, 0.3))'
                       }}
                     ></div>
                     
-                    {/* Animated scanning line - moves vertically with glow */}
+                    {/* Futuristic scanning effects */}
                     {isScanning && (
                       <>
-                        {/* Main bright scanning line */}
+                        {/* Primary scanning beam */}
                         <div 
-                          className="absolute left-0 right-0 scanning-line"
+                          className="absolute left-0 right-0 scanning-beam"
                           style={{ 
                             top: '0',
-                            height: '3px',
-                            background: 'linear-gradient(90deg, transparent 0%, rgba(139, 92, 246, 0.3) 20%, rgba(99, 102, 241, 1) 50%, rgba(139, 92, 246, 0.3) 80%, transparent 100%)',
-                            boxShadow: '0 0 15px 3px rgba(99, 102, 241, 0.8), 0 0 30px 6px rgba(99, 102, 241, 0.5), 0 0 45px 9px rgba(99, 102, 241, 0.3)',
-                            animation: 'scan 3s ease-in-out infinite'
+                            height: '4px',
+                            background: 'linear-gradient(90deg, transparent 0%, rgba(139, 92, 246, 0.4) 15%, rgba(99, 102, 241, 1) 50%, rgba(139, 92, 246, 0.4) 85%, transparent 100%)',
+                            boxShadow: `
+                              0 0 20px 4px rgba(99, 102, 241, 0.9),
+                              0 0 40px 8px rgba(99, 102, 241, 0.6),
+                              0 0 60px 12px rgba(99, 102, 241, 0.4),
+                              0 0 80px 16px rgba(99, 102, 241, 0.2)
+                            `,
+                            animation: 'scan 2.5s cubic-bezier(0.4, 0, 0.2, 1) infinite',
+                            zIndex: 10
                           }}
                         ></div>
-                        {/* Outer glow effect */}
+                        
+                        {/* Large outer glow halo */}
                         <div 
-                          className="absolute left-0 right-0 scanning-line"
+                          className="absolute left-0 right-0 scanning-beam"
                           style={{ 
-                            top: '-8px',
-                            height: '20px',
-                            background: 'radial-gradient(ellipse at center, rgba(99, 102, 241, 0.4) 0%, transparent 70%)',
-                            filter: 'blur(8px)',
-                            animation: 'scan 3s ease-in-out infinite'
+                            top: '-30px',
+                            height: '60px',
+                            background: 'radial-gradient(ellipse at center, rgba(99, 102, 241, 0.5) 0%, rgba(139, 92, 246, 0.3) 30%, transparent 70%)',
+                            filter: 'blur(20px)',
+                            animation: 'scan 2.5s cubic-bezier(0.4, 0, 0.2, 1) infinite',
+                            zIndex: 5
+                          }}
+                        ></div>
+                        
+                        {/* Secondary trailing glow */}
+                        <div 
+                          className="absolute left-0 right-0 scanning-beam"
+                          style={{ 
+                            top: '-15px',
+                            height: '30px',
+                            background: 'linear-gradient(180deg, transparent 0%, rgba(99, 102, 241, 0.4) 50%, transparent 100%)',
+                            filter: 'blur(10px)',
+                            animation: 'scan 2.5s cubic-bezier(0.4, 0, 0.2, 1) infinite',
+                            zIndex: 6
+                          }}
+                        ></div>
+                        
+                        {/* Particle effect lines */}
+                        <div 
+                          className="absolute left-0 right-0 scanning-beam"
+                          style={{ 
+                            top: '2px',
+                            height: '1px',
+                            background: 'linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.8) 50%, transparent 100%)',
+                            boxShadow: '0 0 10px 2px rgba(255, 255, 255, 0.5)',
+                            animation: 'scan 2.5s cubic-bezier(0.4, 0, 0.2, 1) infinite',
+                            zIndex: 12
                           }}
                         ></div>
                       </>
                     )}
                     
-                    {/* Inner oval ring - animated pulse */}
+                    {/* Inner oval ring with pulse */}
                     <div 
-                      className="absolute inset-6 border-2 border-indigo-400/50"
+                      className="absolute inset-6 border-2"
                       style={{ 
                         borderRadius: '50%',
-                        animation: 'pulse 2s ease-in-out infinite'
+                        borderColor: 'rgba(99, 102, 241, 0.4)',
+                        boxShadow: 'inset 0 0 20px rgba(99, 102, 241, 0.2)',
+                        animation: 'pulse-ring 2s ease-in-out infinite'
                       }}
                     ></div>
+                    
+                    {/* Corner markers for sci-fi effect */}
+                    {isScanning && (
+                      <>
+                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-gradient-to-r from-transparent via-indigo-400 to-transparent animate-pulse"></div>
+                        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-gradient-to-r from-transparent via-indigo-400 to-transparent animate-pulse"></div>
+                      </>
+                    )}
                   </div>
                 </div>
 
