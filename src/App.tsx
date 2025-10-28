@@ -939,28 +939,48 @@ export default function App() {
                   <div className="relative" style={{ width: '280px', height: '380px' }}>
                     {/* Main oval guide */}
                     <div 
-                      className="absolute inset-0 border-4 border-white/60 shadow-lg"
+                      className="absolute inset-0 border-4 border-white/70"
                       style={{ 
                         borderRadius: '50%',
-                        boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.5)'
+                        boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.6), 0 0 20px rgba(255, 255, 255, 0.3)'
                       }}
                     ></div>
                     
-                    {/* Animated scanning line - moves vertically */}
+                    {/* Animated scanning line - moves vertically with glow */}
                     {isScanning && (
-                      <div 
-                        className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-indigo-400 to-transparent animate-scan"
-                        style={{ 
-                          top: '0',
-                          animation: 'scan 2s ease-in-out infinite'
-                        }}
-                      ></div>
+                      <>
+                        {/* Main bright scanning line */}
+                        <div 
+                          className="absolute left-0 right-0 scanning-line"
+                          style={{ 
+                            top: '0',
+                            height: '3px',
+                            background: 'linear-gradient(90deg, transparent 0%, rgba(139, 92, 246, 0.3) 20%, rgba(99, 102, 241, 1) 50%, rgba(139, 92, 246, 0.3) 80%, transparent 100%)',
+                            boxShadow: '0 0 15px 3px rgba(99, 102, 241, 0.8), 0 0 30px 6px rgba(99, 102, 241, 0.5), 0 0 45px 9px rgba(99, 102, 241, 0.3)',
+                            animation: 'scan 3s ease-in-out infinite'
+                          }}
+                        ></div>
+                        {/* Outer glow effect */}
+                        <div 
+                          className="absolute left-0 right-0 scanning-line"
+                          style={{ 
+                            top: '-8px',
+                            height: '20px',
+                            background: 'radial-gradient(ellipse at center, rgba(99, 102, 241, 0.4) 0%, transparent 70%)',
+                            filter: 'blur(8px)',
+                            animation: 'scan 3s ease-in-out infinite'
+                          }}
+                        ></div>
+                      </>
                     )}
                     
                     {/* Inner oval ring - animated pulse */}
                     <div 
-                      className="absolute inset-6 border-2 border-indigo-400/40 animate-pulse"
-                      style={{ borderRadius: '50%' }}
+                      className="absolute inset-6 border-2 border-indigo-400/50"
+                      style={{ 
+                        borderRadius: '50%',
+                        animation: 'pulse 2s ease-in-out infinite'
+                      }}
                     ></div>
                   </div>
                 </div>

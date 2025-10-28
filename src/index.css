@@ -20,17 +20,42 @@ code {
 /* Face scanning animation */
 @keyframes scan {
   0% {
-    top: 0;
+    top: -5%;
     opacity: 0;
   }
+  5% {
+    opacity: 0.5;
+  }
   10% {
+    opacity: 1;
+  }
+  50% {
     opacity: 1;
   }
   90% {
     opacity: 1;
   }
+  95% {
+    opacity: 0.5;
+  }
   100% {
-    top: 100%;
+    top: 105%;
     opacity: 0;
   }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+}
+
+.scanning-line {
+  will-change: top, opacity;
+  pointer-events: none;
 }
