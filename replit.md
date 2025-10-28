@@ -105,6 +105,16 @@ A React-based face recognition application that uses real-time camera face detec
 
 ## Recent Changes
 
+- **2024-10-28**: Password-protected modal for clearing all faces
+  - Replaced browser confirm with custom modal matching app's design aesthetic
+  - Modal features gradient red/pink header with warning icon and smooth Framer Motion animations
+  - Password protection (0852Tsie) required to clear all registered faces
+  - Real-time password validation with error feedback
+  - Modal can be closed via Cancel button, X button, or clicking outside
+  - Enter key support for quick password submission
+  - Shows count of faces to be deleted before action
+  - Note: Password is client-side only (visible in source code) but provides protection against accidental deletion
+
 - **2024-10-28**: Duplicate face prevention and data management features
   - Added duplicate face detection during registration to prevent same face registering multiple times
   - System now checks if a face already exists using FaceMatcher with 0.6 threshold before allowing registration
