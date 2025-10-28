@@ -10,12 +10,8 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
 const pool = new Pool({
-  connectionString: process.env.NETLIFY_DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? {
-    rejectUnauthorized: true
-  } : {
-    rejectUnauthorized: false
-  }
+  connectionString: process.env.NETLIFY_DATABASE_URL || process.env.DATABASE_URL,
+  ssl: false
 });
 
 async function initializeDatabase() {
