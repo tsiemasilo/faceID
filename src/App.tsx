@@ -468,44 +468,56 @@ export default function App() {
       collectedDescriptorsRef.current = [];
       setLearningProgress(0);
       
-      if (savedUsers.length > 0) {
-        const allDescriptors: Float32Array[] = [];
-        savedUsers.forEach(user => {
-          const descriptors = Array.isArray(user.descriptor[0]) 
-            ? (user.descriptor as number[][]).map(d => new Float32Array(d))
-            : [new Float32Array(user.descriptor as number[])];
-          allDescriptors.push(...descriptors);
-        });
-
-        const labeledDescriptors = savedUsers.map(user => {
-          const descriptors = Array.isArray(user.descriptor[0]) 
-            ? (user.descriptor as number[][]).map(d => new Float32Array(d))
-            : [new Float32Array(user.descriptor as number[])];
-          return new faceapi.LabeledFaceDescriptors(user.name, descriptors);
-        });
-
-        const faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, FACE_MATCH_THRESHOLD);
-        const match = faceMatcher.findBestMatch(detection.descriptor);
+      try {
+        console.log('🔄 Fetching fresh user list for duplicate check...');
+        const response = await fetch('/api/users');
+        const freshUsers: SavedUser[] = response.ok ? await response.json() : [];
+        console.log(`📊 Found ${freshUsers.length} users in database for duplicate check`);
         
-        console.log(`🔍 Registration duplicate check - Match: ${match.label}, Distance: ${match.distance.toFixed(3)} (threshold: ${FACE_MATCH_THRESHOLD})`);
+        if (freshUsers.length > 0) {
+          const allDescriptors: Float32Array[] = [];
+          freshUsers.forEach(user => {
+            const descriptors = Array.isArray(user.descriptor[0]) 
+              ? (user.descriptor as number[][]).map(d => new Float32Array(d))
+              : [new Float32Array(user.descriptor as number[])];
+            allDescriptors.push(...descriptors);
+          });
 
-        if (match.label !== 'unknown') {
-          isScanningRef.current = false;
-          setIsScanning(false);
-          stopCamera();
-          learningStartTimeRef.current = 0;
-          collectedDescriptorsRef.current = [];
-          setLearningProgress(0);
-          setMessage(`This face is already registered as "${match.label}". Please use a different face.`);
-          setTimeout(() => {
-            setView('welcome');
-            setUserName('');
-            setMessage('');
-            isNewUserRef.current = false;
-            userNameRef.current = '';
-          }, 4000);
-          return;
+          const labeledDescriptors = freshUsers.map(user => {
+            const descriptors = Array.isArray(user.descriptor[0]) 
+              ? (user.descriptor as number[][]).map(d => new Float32Array(d))
+              : [new Float32Array(user.descriptor as number[])];
+            return new faceapi.LabeledFaceDescriptors(user.name, descriptors);
+          });
+
+          const faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, FACE_MATCH_THRESHOLD);
+          const match = faceMatcher.findBestMatch(detection.descriptor);
+          
+          console.log(`🔍 Registration duplicate check - Match: ${match.label}, Distance: ${match.distance.toFixed(3)} (threshold: ${FACE_MATCH_THRESHOLD})`);
+
+          if (match.label !== 'unknown') {
+            isScanningRef.current = false;
+            setIsScanning(false);
+            stopCamera();
+            learningStartTimeRef.current = 0;
+            collectedDescriptorsRef.current = [];
+            setLearningProgress(0);
+            setMessage(`This face is already registered as "${match.label}". Please use a different face.`);
+            setTimeout(() => {
+              setView('welcome');
+              setUserName('');
+              setMessage('');
+              isNewUserRef.current = false;
+              userNameRef.current = '';
+            }, 4000);
+            return;
+          }
+        } else {
+          console.log('✅ No users in database - proceeding with registration');
         }
+      } catch (error) {
+        console.error('⚠️ Error fetching users for duplicate check:', error);
+        console.log('⚠️ Proceeding with registration anyway');
       }
     }
 
