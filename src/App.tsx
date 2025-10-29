@@ -15,6 +15,8 @@ interface AdminUser {
   sample_count: number;
 }
 
+const FACE_MATCH_THRESHOLD = 0.45;
+
 export default function App() {
   const [view, setView] = useState<'welcome' | 'name-input' | 'scanning' | 'success' | 'admin'>('welcome');
   const [isNewUser, setIsNewUser] = useState(false);
@@ -482,8 +484,10 @@ export default function App() {
           return new faceapi.LabeledFaceDescriptors(user.name, descriptors);
         });
 
-        const faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.6);
+        const faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, FACE_MATCH_THRESHOLD);
         const match = faceMatcher.findBestMatch(detection.descriptor);
+        
+        console.log(`🔍 Registration duplicate check - Match: ${match.label}, Distance: ${match.distance.toFixed(3)} (threshold: ${FACE_MATCH_THRESHOLD})`);
 
         if (match.label !== 'unknown') {
           isScanningRef.current = false;
@@ -532,11 +536,14 @@ export default function App() {
         ? collectedDescriptorsRef.current 
         : [descriptor];
 
+      console.log(`📊 Registration - Collected ${descriptors.length} face descriptors for user: ${currentUserName}`);
+
       const newUser: SavedUser = {
         name: currentUserName,
         descriptor: descriptors
       };
 
+      console.log('📤 Sending registration data to server...');
       const response = await fetch('/api/users', {
         method: 'POST',
         headers: {
@@ -545,10 +552,16 @@ export default function App() {
         body: JSON.stringify(newUser),
       });
 
+      console.log(`📥 Server response status: ${response.status}`);
+
       if (!response.ok) {
         const errorData = await response.json();
+        console.error('❌ Server error:', errorData);
         throw new Error(errorData.error || 'Failed to save user');
       }
+
+      const responseData = await response.json();
+      console.log('✅ Registration successful:', responseData);
 
       const updatedUsers = [...savedUsers, newUser];
       setSavedUsers(updatedUsers);
@@ -571,7 +584,25 @@ export default function App() {
       }, 3500);
     } catch (error) {
       console.error('❌ Error during registration:', error);
-      setMessage('Error saving face data. Please try again.');
+      
+      let errorMessage = 'Error saving face data. ';
+      if (error instanceof Error) {
+        if (error.message.includes('already exists')) {
+          errorMessage = 'This name is already registered. Please use a different name.';
+        } else if (error.message.includes('network') || error.message.includes('fetch')) {
+          errorMessage = 'Network error. Please check your connection and try again.';
+        } else if (error.message.includes('required')) {
+          errorMessage = 'Invalid data. Please try scanning again.';
+        } else {
+          errorMessage += error.message;
+        }
+      } else {
+        errorMessage += 'Please try again.';
+      }
+      
+      console.log(`📋 Showing error to user: ${errorMessage}`);
+      setMessage(errorMessage);
+      
       learningStartTimeRef.current = 0;
       collectedDescriptorsRef.current = [];
       setLearningProgress(0);
@@ -600,13 +631,16 @@ export default function App() {
       return new faceapi.LabeledFaceDescriptors(user.name, descriptors);
     });
 
-    const faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.6);
+    const faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, FACE_MATCH_THRESHOLD);
     const match = faceMatcher.findBestMatch(detection.descriptor);
+    
+    const confidence = Math.max(0, Math.min(100, (1 - (match.distance / FACE_MATCH_THRESHOLD)) * 100));
+    console.log(`🔍 Recognition - Match: ${match.label}, Distance: ${match.distance.toFixed(3)}, Confidence: ${confidence.toFixed(1)}% (threshold: ${FACE_MATCH_THRESHOLD})`);
 
     if (match.label !== 'unknown') {
       isScanningRef.current = false;
       setIsScanning(false);
-      setDetectionStatus(`Recognized: ${match.label}`);
+      setDetectionStatus(`Recognized: ${match.label} (${confidence.toFixed(0)}% confidence)`);
       setRecognizedUser(match.label);
       
       const newDescriptor = Array.from(detection.descriptor) as number[];
