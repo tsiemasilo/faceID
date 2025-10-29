@@ -201,24 +201,62 @@ export default function App() {
       const videoTrack = stream.getVideoTracks()[0];
       if (videoTrack) {
         const capabilities = videoTrack.getCapabilities?.() as any;
-        const advancedConstraints: any = {};
+        const settings = videoTrack.getSettings?.() as any;
         
-        if (capabilities?.focusMode?.includes?.('continuous')) {
-          advancedConstraints.focusMode = 'continuous';
-        }
+        console.log('📷 Camera capabilities:', capabilities);
+        console.log('📷 Current camera settings:', settings);
         
+        const basicConstraints: any = {};
+        
+        // Prevent zoom wobble by locking zoom
         if (capabilities?.zoom) {
-          advancedConstraints.zoom = 1.0;
+          const currentZoom = settings?.zoom || 1.0;
+          basicConstraints.zoom = currentZoom;
+          console.log(`🔒 Locking zoom at ${currentZoom}`);
         }
         
-        if (Object.keys(advancedConstraints).length > 0) {
-          await videoTrack.applyConstraints({
-            advanced: [advancedConstraints]
-          } as any);
+        // Use manual focus to prevent autofocus hunting which causes zoom-like effects
+        if (capabilities?.focusMode) {
+          if (capabilities.focusMode.includes('manual')) {
+            basicConstraints.focusMode = 'manual';
+            // Set focus distance to a reasonable middle value for face scanning
+            if (capabilities.focusDistance) {
+              const midDistance = (capabilities.focusDistance.min + capabilities.focusDistance.max) / 2;
+              basicConstraints.focusDistance = midDistance;
+            }
+            console.log('🎯 Using manual focus mode');
+          } else if (capabilities.focusMode.includes('continuous')) {
+            basicConstraints.focusMode = 'continuous';
+            console.log('🎯 Using continuous focus mode');
+          }
+        }
+        
+        // Disable exposure compensation to prevent brightness adjustments that affect zoom perception
+        if (capabilities?.exposureMode && capabilities.exposureMode.includes('manual')) {
+          basicConstraints.exposureMode = 'manual';
+        }
+        
+        // Apply basic constraints (not advanced) for better compatibility
+        if (Object.keys(basicConstraints).length > 0) {
+          try {
+            await videoTrack.applyConstraints(basicConstraints);
+            console.log('✅ Camera constraints applied successfully');
+          } catch (constraintError) {
+            console.log('⚠️ Could not apply all constraints, trying subset:', constraintError);
+            // Try with just zoom lock as fallback
+            if (basicConstraints.zoom) {
+              try {
+                await videoTrack.applyConstraints({ zoom: basicConstraints.zoom } as any);
+                console.log('✅ Zoom lock applied');
+              } catch (e) {
+                console.log('⚠️ Could not lock zoom');
+              }
+            }
+          }
         }
       }
     } catch (e) {
-      console.log('⚠️ Could not apply advanced camera constraints:', e);
+      console.log('⚠️ Could not apply camera constraints:', e);
     }
   };
 
@@ -269,31 +307,50 @@ export default function App() {
       }
       
       if (videoRef.current) {
-        videoRef.current.srcObject = stream;
+        const video = videoRef.current;
+        video.srcObject = stream;
         streamRef.current = stream;
         
+        // Force load the video
+        video.load();
+        
+        console.log('📹 Waiting for video to be ready...');
+        
         await new Promise<void>((resolve, reject) => {
-          if (!videoRef.current) {
+          if (!video) {
             reject(new Error('Video element not found'));
             return;
           }
           
-          const video = videoRef.current;
           let attempts = 0;
-          const maxAttempts = 50;
+          const maxAttempts = 100; // Increased from 50 for slower devices
           
           const checkVideoReady = () => {
-            if (video.videoWidth > 0 && video.videoHeight > 0 && video.readyState >= 2) {
+            const width = video.videoWidth;
+            const height = video.videoHeight;
+            const ready = video.readyState;
+            
+            console.log(`📹 Video check - Width: ${width}, Height: ${height}, ReadyState: ${ready}, Attempt: ${attempts + 1}`);
+            
+            // Check for HAVE_CURRENT_DATA (2) or better
+            if (width > 0 && height > 0 && ready >= video.HAVE_CURRENT_DATA) {
+              console.log('✅ Video dimensions loaded, attempting to play...');
+              
               let playAttempts = 0;
-              const maxPlayAttempts = 3;
+              const maxPlayAttempts = 5;
               
               const tryPlay = () => {
                 video.play()
-                  .then(() => resolve())
+                  .then(() => {
+                    console.log('✅ Video playing successfully');
+                    // Wait a bit more for the first frame to render
+                    setTimeout(() => resolve(), 300);
+                  })
                   .catch((error) => {
+                    console.error(`❌ Play attempt ${playAttempts + 1} failed:`, error);
                     playAttempts++;
-                    if (playAttempts < maxPlayAttempts && (error.name === 'NotAllowedError' || error.name === 'AbortError')) {
-                      setTimeout(tryPlay, 100);
+                    if (playAttempts < maxPlayAttempts) {
+                      setTimeout(tryPlay, 150);
                     } else {
                       reject(error);
                     }
@@ -304,15 +361,33 @@ export default function App() {
             } else {
               attempts++;
               if (attempts >= maxAttempts) {
+                console.error('❌ Video ready timeout - dimensions not loading');
                 reject(new Error('Video dimensions timeout'));
                 return;
               }
-              setTimeout(checkVideoReady, 100);
+              setTimeout(checkVideoReady, 50);
             }
           };
           
-          video.onloadedmetadata = () => checkVideoReady();
-          if (video.readyState >= 1) {
+          // Listen for multiple events to catch when video is ready
+          video.onloadedmetadata = () => {
+            console.log('📹 Metadata loaded event fired');
+            checkVideoReady();
+          };
+          
+          video.onloadeddata = () => {
+            console.log('📹 Data loaded event fired');
+            checkVideoReady();
+          };
+          
+          video.oncanplay = () => {
+            console.log('📹 Can play event fired');
+            checkVideoReady();
+          };
+          
+          // Start checking immediately if video already has metadata
+          if (video.readyState >= video.HAVE_METADATA) {
+            console.log('📹 Video already has metadata, checking immediately');
             checkVideoReady();
           }
         });
@@ -525,9 +600,11 @@ export default function App() {
     const MIN_LEARNING_SECONDS = 5;
     
     if (elapsedSeconds < MIN_LEARNING_SECONDS) {
-      if (frameCountRef.current % 10 === 0) {
+      // Collect more samples for better accuracy - sample every 5 frames instead of 10
+      if (frameCountRef.current % 5 === 0) {
         const descriptor = Array.from(detection.descriptor) as number[];
         collectedDescriptorsRef.current.push(descriptor);
+        console.log(`📸 Collected descriptor ${collectedDescriptorsRef.current.length} at ${elapsedSeconds}s`);
       }
       
       setLearningProgress(elapsedSeconds);
