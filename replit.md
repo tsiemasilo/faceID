@@ -1,264 +1,41 @@
 # Face ID Recognition App
 
-## Overview
-A React-based face recognition application that uses real-time camera face detection, similar to iOS Face ID. Users can register their face with their name, and the system will recognize them on subsequent uses. Built with face-api.js for accurate face detection and recognition.
+### Overview
+This project is a React-based face recognition application designed to mimic iOS Face ID. It enables users to register their faces with a name and subsequently recognizes them using real-time camera feeds. The application leverages `face-api.js` for accurate face detection and recognition, providing a seamless and secure authentication experience. The business vision is to provide a robust, user-friendly biometric authentication solution that can be integrated into various applications requiring secure personal identification. Its market potential lies in enhancing security and user experience in mobile and web applications, offering a modern alternative to traditional password-based systems. The project aims to set a high standard for client-side biometric authentication, making advanced AI accessible and practical for everyday use.
 
-## Project Architecture
+### User Preferences
+I prefer clear, concise explanations and a direct approach to problem-solving. When making changes, please prioritize the use of functional components and hooks in React. I prefer an iterative development process, where small, tested changes are made frequently. Please ask for my approval before implementing any major architectural changes or significant feature additions. Do not make changes to the `public/models/` folder. Do not modify the core `face-api.js` library files.
 
-### Tech Stack
-- **Frontend Framework**: React 18 with TypeScript
+### System Architecture
+The application is built with React 18 and TypeScript, using Vite for fast development and Tailwind CSS for styling. Framer Motion is integrated for smooth UI transitions and micro-interactions, complemented by shadcn/ui for consistent components and Lucide React for icons.
+
+**UI/UX Decisions:**
+The design adopts an iOS-style aesthetic with a modern gradient background, animated circular scanning overlay, and corner brackets for a familiar Face ID experience. Smooth transitions, responsive layouts, and micro-interactions ensure a polished user experience. A custom modal, matching the app's design, is used for interactions like clearing faces, featuring Framer Motion animations.
+
+**Technical Implementations:**
+- **Face Detection & Recognition**: Utilizes `face-api.js` (TensorFlow.js CPU backend) with TinyFaceDetector for speed, 68-point facial landmark detection, and 128-dimensional face descriptors for recognition. A FaceMatcher with a 0.45 threshold ensures accurate matching. Visual overlays are hidden during scanning for privacy, showing only the iOS-style frame and status.
+- **Camera Integration**: Employs the MediaDevices API, supporting both front (`user`) and rear (`environment`) cameras with a flip camera button and graceful fallback. Mobile-optimized constraints prevent autofocus zoom wobble, ensuring stable video processing.
+- **State Management**: React's `useState` manages core application states including `view`, `isNewUser`, `userName`, `modelsLoaded`, `cameraGranted`, `isScanning`, `message`, `recognizedUser`, `savedUsers`, and `facingMode`.
+
+**Feature Specifications:**
+- **User Registration**: Users enter their name, grant camera permission, and perform an iOS-style face scan. The face descriptor is saved with their name.
+- **User Recognition**: Activates the camera for real-time face scanning, detecting and recognizing existing users by displaying their name.
+- **Permission Handling**: Camera permission is persisted in `localStorage` to only ask once per device.
+- **Camera Flexibility**: Allows switching between front and back cameras, with robust error handling to maintain the active stream even if a switch fails.
+
+**System Design Choices:**
+- **Storage**: Face descriptors and user names are stored in a PostgreSQL database.
+- **Backend**: An Express.js server handles API requests in development, while Netlify Functions provide serverless API endpoints for production.
+- **Security**: Environment variables secure sensitive data like `CLEAR_USERS_PASSWORD`. SSL certificate validation is enabled for production database connections. Duplicate face detection prevents multiple registrations of the same face.
+
+### External Dependencies
+- **Frontend Framework**: React 18
 - **Build Tool**: Vite 4
 - **Styling**: Tailwind CSS 3
-- **Animation Library**: Framer Motion (smooth page transitions and micro-interactions)
-- **UI Components**: shadcn/ui (Button component with multiple variants)
+- **Animation Library**: Framer Motion
+- **UI Components**: shadcn/ui
 - **Icons**: Lucide React
-- **Face Recognition**: face-api.js (TensorFlow.js based)
-- **AI Models**: TinyFaceDetector, FaceLandmark68, FaceRecognition
-- **Backend**: Express.js with Node.js
+- **Face Recognition**: `face-api.js` (TensorFlow.js based, includes TinyFaceDetector, FaceLandmark68, FaceRecognition models)
+- **Backend**: Express.js (for development)
 - **Database**: PostgreSQL (Netlify-hosted)
-- **API Architecture**: REST API with Netlify Functions for serverless deployment
-
-### Project Structure
-```
-/
-├── netlify/
-│   └── functions/
-│       └── api.js                 # Netlify serverless function for production API
-├── public/
-│   └── models/                    # AI model weights for face detection
-├── src/
-│   ├── components/
-│   │   └── ui/
-│   │       └── button.tsx         # shadcn/ui Button component
-│   ├── lib/
-│   │   └── utils.ts               # Utility functions (cn helper)
-│   ├── App.tsx                    # Main application component
-│   ├── main.tsx                   # React entry point
-│   └── index.css                  # Tailwind CSS + custom styles
-├── server.js                      # Express API server for development
-├── index.html                     # HTML entry point
-├── vite.config.ts                 # Vite configuration (with API proxy)
-├── netlify.toml                   # Netlify deployment configuration
-├── tsconfig.json                  # TypeScript configuration
-├── tailwind.config.js             # Tailwind CSS configuration
-└── package.json                   # Dependencies and scripts
-```
-
-## Key Features
-1. **New User Registration**: 
-   - User enters their name
-   - App requests camera permission (persisted per device)
-   - iOS-style face scanning with animated overlay
-   - Face descriptor saved to localStorage linked to user's name
-
-2. **Existing User Recognition**:
-   - Camera activates for face scanning
-   - Real-time face detection and recognition
-   - User's name displayed above their detected face
-   - Fast and accurate matching using face descriptors
-
-3. **iOS-Style UI**:
-   - Gradient background with modern design
-   - Animated circular scanning overlay
-   - Corner brackets similar to Apple Face ID
-   - Smooth transitions and responsive layout
-   - Flip camera button to switch between front and back cameras
-
-4. **Smart Permission Handling**:
-   - Camera permission saved in localStorage
-   - Only asks once per device
-   - Clear permission request flow
-
-5. **Camera Flexibility**:
-   - Switch between front-facing and rear-facing cameras
-   - Graceful fallback if alternate camera unavailable
-   - Maintains active stream when camera switch fails
-
-## Technical Implementation
-
-### Face Detection & Recognition
-- Uses face-api.js with TensorFlow.js CPU backend
-- TinyFaceDetector for fast face detection
-- 68-point facial landmark detection (hidden from UI for privacy)
-- Face descriptors (128-dimensional vectors) for recognition
-- FaceMatcher with 0.6 threshold for accurate matching
-- Visual overlays hidden during scanning - only iOS-style frame and status shown
-
-### Storage & Backend
-- **Database**: PostgreSQL database stores face descriptors and user names
-- **API Endpoints**:
-  - `GET /api/users` - Retrieve all registered users
-  - `POST /api/users` - Register a new user with face descriptor
-  - `DELETE /api/users` - Clear all users (password-protected)
-  - `GET /api/health` - API health check
-- **Development**: Express.js server on port 3001, proxied through Vite
-- **Production**: Netlify Functions for serverless deployment
-- **Security**: 
-  - Password stored securely in environment variables (CLEAR_USERS_PASSWORD)
-  - SSL certificate validation enabled in production
-  - Duplicate face detection prevents multiple registrations
-- **Camera permission**: Still stored in localStorage (device-specific setting)
-
-### Camera Integration
-- MediaDevices API for camera access
-- Supports both front-facing ('user') and rear-facing ('environment') cameras
-- Flip camera button with graceful fallback on failure
-- High-quality video (1280x720 ideal resolution)
-- Real-time video processing with canvas overlay
-- Robust error handling with stream preservation on camera switch failures
-- Mobile-optimized constraints to prevent autofocus zoom wobble
-- Dynamic capability detection and constraint application per device
-
-## Development
-- **Frontend**: Vite dev server on port 5000
-- **Backend**: Express API server on port 3001
-- **API Proxy**: Vite proxies `/api/*` requests to backend server
-- **Required Environment Variables**:
-  - `NETLIFY_DATABASE_URL` - PostgreSQL connection string
-  - `CLEAR_USERS_PASSWORD` - Password for clearing all users
-- Hot module replacement enabled
-- Responsive design works on mobile and desktop
-
-## Deployment
-- **Platform**: Netlify (recommended) or any platform supporting static sites + serverless functions
-- **Build Command**: `npm run build`
-- **Publish Directory**: `dist`
-- **Functions**: Netlify Functions handle API requests in production
-- **Environment Variables Required**:
-  - `NETLIFY_DATABASE_URL` - PostgreSQL connection string
-  - `CLEAR_USERS_PASSWORD` - Password for clearing all users
-- **Database**: PostgreSQL (must support SSL connections)
-- All models and assets served statically from CDN
-
-## Recent Changes
-
-- **2024-10-28**: PostgreSQL Database Integration & Backend API
-  - **BREAKING CHANGE**: Migrated from localStorage to PostgreSQL database for persistent storage
-  - Created Express.js REST API server with endpoints for user management
-  - Implemented Netlify Functions for production serverless deployment
-  - Added secure password protection using environment variables (CLEAR_USERS_PASSWORD)
-  - Configured SSL certificate validation for production database connections
-  - Updated Vite configuration with API proxy for development
-  - Face data now persists across devices and deployments
-  - Database schema includes indexed user table with JSONB descriptor storage
-  - Automatic database initialization on server startup
-  - Both Replit development and Netlify production environments supported
-
-- **2024-10-28**: Password-protected modal for clearing all faces
-  - Replaced browser confirm with custom modal matching app's design aesthetic
-  - Modal features gradient red/pink header with warning icon and smooth Framer Motion animations
-  - Password protection stored securely in environment variable
-  - Real-time password validation with error feedback
-  - Modal can be closed via Cancel button, X button, or clicking outside
-  - Enter key support for quick password submission
-  - Shows count of faces to be deleted before action
-
-- **2024-10-28**: Duplicate face prevention and data management features
-  - Added duplicate face detection during registration to prevent same face registering multiple times
-  - System now checks if a face already exists using FaceMatcher with 0.6 threshold before allowing registration
-  - If duplicate detected, shows clear error message indicating which name the face is already registered under
-  - Added "Clear All Faces" button to welcome screen for easy data management
-  - Clear function includes confirmation dialog to prevent accidental data loss
-  - Fixed Netlify deployment TypeScript error (unused variable in handleExistingUserRecognition)
-
-- **2024-10-28**: Comprehensive UI/UX overhaul with Framer Motion animations
-  - Integrated Framer Motion for smooth page transitions across all views
-  - Fixed glitchy scanning animation with proper easing and keyframe sequences
-  - Implemented shadcn/ui Button component system with multiple variants (default, secondary, outline, ghost)
-  - Added micro-interactions throughout: hover effects, scale animations, and tap feedback
-  - Created dedicated success screen with scale animations and visual celebration effects
-  - Enhanced gradient backgrounds with glassmorphism and modern shadow effects
-  - Improved scanning beam animation for smooth vertical sweep without glitches
-  - Added AnimatePresence for seamless view transitions
-  - Implemented requestAnimationFrame-driven detection loop for optimal performance
-  - All animations use cubic-bezier easing for professional feel
-  - Added custom scrollbar styling and focus-visible states for accessibility
-
-- **2024-10-24**: Privacy and mobile UX improvements
-  - Hidden face model visualization (bounding boxes and landmarks) during scanning for better privacy
-  - Face detection still works in background - only visual overlay is hidden
-  - Implemented mobile camera constraints to prevent autofocus zoom wobble
-  - Added `applyMobileConstraints` helper that checks device capabilities and applies focus/zoom settings
-  - Mobile users will experience more stable camera view during face scanning
-
-- **2024-10-24**: Fixed critical face detection loop issue
-  - Modified detectFaces function to check isScanningRef.current FIRST before checking video state
-  - Added auto-resume functionality when video is paused (critical for mobile browsers)
-  - Fixed race condition that caused detection loop to stop immediately after starting
-  - Added comprehensive console logging throughout detection pipeline
-  - Detection loop now keeps running once scanning starts, preventing early exit
-  - Face detection now works reliably on iPhone Safari, Samsung Internet, and Android Chrome
-  
-- **2024-10-24**: Enhanced mobile camera support with fallback constraints
-  - Added flexible camera constraints (min/max/ideal) for better device compatibility
-  - Implemented multi-level fallback: ideal → exact → basic constraints
-  - Improved camera flip function with proper state management and timeout protection
-  - Better error handling for devices with limited camera APIs
-
-## Recent Changes
-- **2024-10-24**: Fixed face registration state closure bug
-  - Fixed critical bug where face registration wouldn't work due to stale state values in async detection loop
-  - Added refs (isNewUserRef, userNameRef) to ensure detection loop always has current values
-  - Added comprehensive console logging throughout registration flow for debugging
-  - Improved error handling with proper recovery - detection loop restarts after errors
-  - Removed silent failures and added clear error messages for users
-  - Face registration now works reliably - users will see success message after face is captured
-
-- **2024-10-24**: UX improvements for existing user authentication flow
-  - Added validation check to prevent camera from starting when no users are registered
-  - Display helpful error message when user clicks "Existing User" with no registered profiles
-  - Improved welcome screen to show clear warning when no users exist (instead of only showing count)
-  - Enhanced user guidance to encourage new user registration before attempting authentication
-
-- **2024-10-24**: Face detection improvements and UI enhancements
-  - Fixed face detection to properly start and run continuously
-  - Added video mirroring for front camera (acts like a mirror)
-  - Changed scanning overlay to larger oval shape (72x96) to better match face proportions
-  - Added canvas mirroring to match video orientation
-  - Improved debugging with console logging for face detection
-  - Fixed animation loop to continue even when video isn't ready
-  - Added readyState check for video data availability
-  
-- **2024-10-24**: Camera functionality fixes and flip camera feature
-  - Fixed camera initialization to properly wait for video stream playback
-  - Added flip camera button to switch between front and back cameras
-  - Implemented graceful fallback when switching to unavailable camera
-  - Fixed UI flow to only show scanning view after camera successfully starts
-  - Added stream preservation when camera switch fails
-  - Improved error handling and user feedback
-
-- **2024-10-24**: Complete rebuild from scratch
-  - Removed WebAuthn-based biometric attendance system
-  - Implemented real face recognition with camera
-  - Added face-api.js for ML-based face detection
-  - Created iOS-style scanning interface
-  - Implemented new/existing user flow
-  - Added persistent camera permission handling
-  - Made fully responsive for mobile and web
-
-## State Management
-The application uses React's built-in `useState` for state management:
-- `view`: Current screen ('welcome', 'name-input', 'scanning', 'recognition')
-- `isNewUser`: Whether registering a new user or recognizing existing
-- `userName`: Name input for new user registration
-- `modelsLoaded`: AI models loading status
-- `cameraGranted`: Camera permission status
-- `isScanning`: Active face scanning state
-- `message`: User feedback messages
-- `recognizedUser`: Name of recognized user
-- `savedUsers`: Array of registered users with face descriptors
-- `facingMode`: Current camera mode ('user' for front, 'environment' for back)
-
-## Known Limitations
-1. Data stored in localStorage only (no backend)
-2. Face descriptors can be cleared if browser cache is cleared
-3. Works best with good lighting conditions
-4. Requires camera access to function
-5. CPU backend used (slower than GPU but more compatible)
-6. Single face detection per frame (designed for single-user authentication)
-
-## Performance Notes
-- CPU backend ensures compatibility across all devices
-- TinyFaceDetector chosen for speed vs SSD MobileNet
-- Face recognition threshold set to 0.6 for balance of accuracy/false positives
-- Real-time processing at 30fps on modern devices
+- **API Deployment**: Netlify Functions
