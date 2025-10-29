@@ -59,7 +59,7 @@ export async function handler(event, context) {
     return { statusCode: 204, headers, body: '' };
   }
 
-  const path = event.path.replace('/.netlify/functions/api', '');
+  const path = event.path.replace('/.netlify/functions/api', '').replace('/api', '');
 
   try {
     if (path === '/health' && event.httpMethod === 'GET') {
