@@ -39,3 +39,27 @@ The design adopts an iOS-style aesthetic with a modern gradient background, anim
 - **Backend**: Express.js (for development)
 - **Database**: PostgreSQL (Netlify-hosted)
 - **API Deployment**: Netlify Functions
+
+### Recent Changes
+
+- **2024-10-29**: Camera stability and face recognition improvements
+  - **CRITICAL FIX**: Eliminated camera zoom wobble by locking zoom at current level and using manual focus mode
+  - Fixed black screen and slow camera loading with improved video readiness detection
+  - Added multiple event listeners (onloadedmetadata, onloadeddata, oncanplay) for robust video initialization
+  - Increased video loading timeout from 50 to 100 attempts for slower mobile devices
+  - Doubled face descriptor sampling frequency (every 5 frames instead of 10) for better recognition accuracy
+  - Added comprehensive camera logging showing capabilities, settings, and loading progress
+  - Improved camera constraints with intelligent zoom locking and focus management
+  - Better autofocus handling to prevent "hunting" that causes zoom-like effects
+  - Fixed duplicate face check to use fresh database data instead of cached frontend state
+  - All changes architect-reviewed and confirmed production-ready
+
+- **2024-10-29**: Face recognition accuracy and error handling improvements
+  - **CRITICAL FIX**: Reduced face matching threshold from 0.6 to 0.45 to prevent false positive matches
+  - Created FACE_MATCH_THRESHOLD constant at module level for easy configuration
+  - Fixed issue where users were being incorrectly identified as wrong people
+  - Added match confidence display showing percentage during recognition (e.g., "Recognized: John (85% confidence)")
+  - Implemented comprehensive error logging for registration failures on mobile devices
+  - Added detailed telemetry: descriptor counts, network status, server responses
+  - Enhanced error messages with specific feedback for different failure types (duplicate name, network error, invalid data)
+  - Console logs now show match distance and confidence for debugging
